@@ -323,7 +323,13 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
           INDEX_TABLE_NAME: props.sharedConstructOutputs.indexTable.tableName,
           MODEL_TABLE_NAME: props.sharedConstructOutputs.modelTable.tableName,
         },
-        statements: [this.iamHelper.dynamodbStatement, this.iamHelper.secretsManagerStatement, this.iamHelper.logStatement, this.iamHelper.esStatement, this.iamHelper.bedrockStatement],
+        statements: [this.iamHelper.dynamodbStatement,
+        this.iamHelper.secretsManagerStatement,
+        this.iamHelper.logStatement,
+        this.iamHelper.esStatement,
+        this.iamHelper.bedrockStatement,
+        this.iamHelper.endpointStatement
+        ],
         layers: [sharedLayer],
       });
 
