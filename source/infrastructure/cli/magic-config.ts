@@ -13,13 +13,15 @@ import {
 } from "../lib/shared/types";
 import { LIB_VERSION } from "./version.js";
 
+const embeddingAndRerankingModelEndpoint = "bce-embedding-and-bge-reranker-250331-endpoint";
+
 const embeddingModels = [
   {
     provider: "SageMaker",
     id: "bce-embedding-base_v1",
     commitId: "43972580a35ceacacd31b95b9f430f695d07dde9",
     dimensions: 768,
-    modelEndpoint: "bce-embedding-and-bge-reranker-43972-endpoint",
+    modelEndpoint: embeddingAndRerankingModelEndpoint,
   },
   {
     provider: "Bedrock",
@@ -33,13 +35,7 @@ const embeddingModels = [
     id: "cohere.embed-english-v3",
     commitId: "",
     dimensions: 1024,
-  },
-  {
-    provider: "Bedrock",
-    id: "amazon.titan-embed-text-v1",
-    commitId: "",
-    dimensions: 1024,
-  },
+  }
 ];
 
 let rerankModels = [
@@ -50,7 +46,7 @@ let rerankModels = [
   {
     provider: "SageMaker",
     id: "bge-reranker-large",
-    modelEndpoint: "bce-embedding-and-bge-reranker-43972-endpoint",
+    modelEndpoint: embeddingAndRerankingModelEndpoint,
   },
 ]
 
@@ -411,23 +407,6 @@ async function processCreateOptions(options: any): Promise<void> {
       },
     },
     {
-      type: "select",
-      name: "defaultEmbedding",
-      message: "Select an embedding model, it is used when injecting and retrieving knowledges or intentions",
-      choices: embeddingModels.map((m) => ({ name: m.id, value: m })),
-      initial: options.defaultEmbedding,
-      validate(value: string) {
-        if ((this as any).state.answers.enableChat) {
-          return value ? true : "Select a default embedding model";
-        }
-
-        return true;
-      },
-      skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase || deployInChina);
-      },
-    },
-    {
       type: "input",
       name: "sagemakerModelS3Bucket",
       message: "Please enter the name of the S3 Bucket for the sagemaker models assets",
@@ -526,6 +505,7 @@ async function processCreateOptions(options: any): Promise<void> {
     ]
 
   } else {
+    answers.defaultEmbedding = "bce-embedding-base_v1";
     answers.defaultRerankModel = "bge-reranker-large";
     answers.defaultLlm = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
     answers.defaultVlm = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
