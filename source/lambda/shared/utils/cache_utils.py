@@ -1,7 +1,7 @@
 from aiocache import cached as asyncached,SimpleMemoryCache
 import asyncio
 from functools import wraps
-from cachetools import cached,keys,Cache
+from cachetools import cached,keys,Cache,TTLCache
 from .logger_utils import get_logger
 
 
@@ -9,7 +9,7 @@ def lru_cache_with_logging(cache:Cache = None, key=keys.hashkey, lock=None):
     def decorator(func):
         cache_obj = cache
         if cache_obj is None:
-            cache_obj = Cache(128)
+            cache_obj = TTLCache(128,120)
         cached_func = cached(cache_obj,key=key,lock=lock,info=True)(func)
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -29,7 +29,11 @@ def alru_cache_with_logging(cache=SimpleMemoryCache, key=keys.hashkey, lock=None
     def decorator(func):
         def key_helper(func,*args,**kwargs):
             return key(*args, **kwargs)
-        cached_func = asyncached(cache=cache,key_builder=key_helper)(func)
+        cached_func = asyncached(
+            cache=cache,
+            key_builder=key_helper,
+            ttl=120
+        )(func)
         @wraps(func)
         async def wrapper(*args, **kwargs):
             before_cache_size = len(cached_func.cache._cache)
