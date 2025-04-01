@@ -16,7 +16,7 @@ def _file_name_in_path(file_path: str) -> str:
     return file_path.split("/")[-1]
 
 
-def format_qq_data(doc:Document,source_field,rerank_score_field="relevance_score") -> str:
+def format_qq_data(doc: Document, source_field, rerank_score_field="relevance_score") -> str:
     """
     Formats QQ match result.
 
@@ -48,7 +48,7 @@ def format_qq_data(doc:Document,source_field,rerank_score_field="relevance_score
     return markdown_table
 
 
-def format_rag_data(retrieved_contexts:List[Document], qq_result:List[Document],source_field:str,rerank_score_field="relevance_score") -> str:
+def format_rag_data(retrieved_contexts: List[Document], qq_result: List[Document], source_field: str, rerank_score_field="relevance_score") -> str:
     """
     Formats the given data into a markdown table.
 
@@ -83,19 +83,20 @@ def format_rag_data(retrieved_contexts:List[Document], qq_result:List[Document],
         markdown_table += "|-----|-----|-----|-----|-----|\n"
 
         for qq_item in qq_result:
-            raw_qq_source = item.metadata.get(source_field, "")
+            raw_qq_source = qq_item.metadata.get(source_field, "")
             qq_source = _file_name_in_path(raw_qq_source)
 
-            score = item.metadata.get("retrieval_score", -1)
-            rerank_score = item.metadata.get(rerank_score_field, None)
+            score = qq_item.metadata.get("retrieval_score", -1)
+            rerank_score = qq_item.metadata.get(rerank_score_field, None)
             if rerank_score is not None:
-                score = f"{item.metadata['search_by']} retrieval_score: {score}, rerank score: {rerank_score})"
+                score = f"{qq_item.metadata['search_by']} retrieval_score: {score}, rerank score: {rerank_score})"
             else:
-                score = f"{item.metadata['search_by']} retrieval_score: {score}"
+                score = f"{qq_item.metadata['search_by']} retrieval_score: {score}"
 
             # qq_score = qq_item.get("score", -1)
             qq_question = qq_item.page_content.replace("\n", "<br>")
-            qq_answer = qq_item.metadata.get("answer", "").replace("\n", "<br>")
+            qq_answer = qq_item.metadata.get(
+                "answer", "").replace("\n", "<br>")
             markdown_table += f"| {qq_source} | {raw_qq_source} | {score} | {qq_question} | {qq_answer} |\n"
 
     return markdown_table
@@ -112,7 +113,7 @@ def format_preprocess_output(ori_query, rewrite_query):
     return markdown_table
 
 
-def format_intention_output(data:List[Document]):
+def format_intention_output(data: List[Document]):
     if is_null_or_empty(data):
         return ""
 
