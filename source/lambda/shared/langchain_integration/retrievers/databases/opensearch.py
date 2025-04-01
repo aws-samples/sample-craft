@@ -225,24 +225,19 @@ class OpenSearchBase(BaseModel):
         return return_ids
     
     def get_search_key(self,query_dict):
-        return pickle.dumps({
+        d = {
             "opensearch_url":self.opensearch_url,
             "index": self.index_name,
             "client_kwargs":self.client_kwargs,
             "is_aoss":self.is_aoss,
             "body": query_dict
-        })
+        }
+        return pickle.dumps(d)
 
     @lru_cache_with_logging(key=get_search_key)
     def search(self, query_dict: dict):
         res = self.client.search(index=self.index_name, body=query_dict)
         return res
-    
-    # @alru_cache_with_logging(key=get_search_key)
-    # async def asearch(self, query_dict: dict):
-    #     return await self.async_client.search(
-    #         index=self.index_name, body=query_dict
-    #     )
 
     @alru_cache_with_logging(key=get_search_key)
     async def asearch(self, query_dict: dict):

@@ -46,7 +46,7 @@ from shared.utils.monitor_utils import (
 )
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 from shared.utils.python_utils import add_messages, update_nest_dict
-
+from shared.utils.asyncio_utils import run_coroutine_with_new_el
 logger = get_logger("common_entry")
 
 
@@ -165,53 +165,27 @@ def query_preprocess(state: ChatbotState):
 def intention_detection(state: ChatbotState):
     logger.info("#### QQ match")
     qq_match_config = state["chatbot_config"]["qq_match_config"]
-    # retriever_params["query"] = state[
-    #     retriever_params.get("retriever_config", {}).get("query_key", "query")
-    # ]
-
     qq_retrievers = [
-        OpensearchHybridQueryQuestionRetriever.from_config(**retriver_config)
+        OpensearchHybridQueryQuestionRetriever.from_config(
+            **{
+                **retriver_config,
+                "rerank_config":None,
+                "enable_bm25_search":False
+            }
+        )
         for retriver_config in qq_match_config["retrievers"]
     ]
 
     qq_retriever = MergerRetriever(retrievers=qq_retrievers)
-    # qq_retriever = OpensearchHybridQueryQuestionRetriever.from_config(
-    #     **retriever_params
-    # )
+
     logger.info("##### QQ match running")
-    qq_retrievered: List[Document] = asyncio.run(
+    qq_retrievered: List[Document] = run_coroutine_with_new_el(
         qq_retriever.ainvoke(state["query"])
     )
 
-    # output = retrieve_fn(retriever_params)
-    # context_list = []
     qq_match_results = []  # used in rag tool
     qq_match_threshold = qq_match_config["qq_match_threshold"]
     qq_in_rag_context_threshold = qq_match_config["qq_in_rag_context_threshold"]
-
-    # for doc in output["result"]["docs"]:
-    #     if doc["retrieval_score"] > qq_match_threshold:
-    #         doc_md = format_qq_data(doc)
-    #         send_trace(
-    #             f"\n\n**similar query found**\n\n{doc_md}",
-    #             state["stream"],
-    #             state["ws_connection_id"],
-    #             state["enable_trace"],
-    #         )
-    #         query_content = doc["answer"]
-    #         # query_content = doc['answer']['jsonlAnswer']
-    #         return {
-    #             "answer": query_content,
-    #             "intent_type": "similar query found",
-    #         }
-
-    #     if doc["retrieval_score"] > qq_in_rag_context_threshold:
-    #         question = doc["question"]
-    #         answer = doc["answer"]
-    #         context_list.append(f"问题: {question}, \n答案：{answer}")
-    #         qq_match_contexts.append(doc)
-
-    # TODO modify intention and qq match score
 
     for doc in qq_retrievered:
         if doc.metadata["retrieval_score"] > qq_match_threshold:
@@ -225,7 +199,7 @@ def intention_detection(state: ChatbotState):
                 state["enable_trace"],
             )
             query_content = doc.metadata["answer"]
-            # query_content = doc['answer']['jsonlAnswer']
+            
             return {
                 "answer": query_content,
                 "intent_type": "similar query found",
@@ -241,8 +215,7 @@ def intention_detection(state: ChatbotState):
                     metadata={**doc.metadata},
                 )
             )
-            # qq_match_contexts.append(Document(
-            # ))
+           
     if state["chatbot_config"]["agent_config"]["only_use_rag_tool"]:
         return {
             "qq_match_results": qq_match_results,
@@ -256,10 +229,7 @@ def intention_detection(state: ChatbotState):
     )
     query = state[query_key]
     intent_threshold = intention_config["intent_threshold"]
-    all_knowledge_in_agent_threshold = intention_config[
-        "all_knowledge_in_agent_threshold"
-    ]
-    intent_fewshot_examples, intention_ready = get_intention_results(
+    intent_fewshot_examples, _ = get_intention_results(
         query,
         {
             **intention_config,
@@ -273,22 +243,8 @@ def intention_detection(state: ChatbotState):
     all_knowledge_retrieved_list = []
     markdown_table = format_intention_output(intent_fewshot_examples)
 
-    # group_name = state["chatbot_config"]["group_name"]
-    # chatbot_id = state["chatbot_config"]["chatbot_id"]
-    # custom_qd_index = custom_index_desc(group_name, chatbot_id)
 
-    # TODO need to modify with new intent logic
-    # 1. no intention configuration
-    # 2. has configured intention, and intention not valid
     if not intent_fewshot_examples:
-        # if not intention_ready:
-        # retrieve all knowledge
-        # retriever_params = state["chatbot_config"]["private_knowledge_config"]
-        # retriever_params["query"] = state[
-        #     retriever_params.get("retriever_config", {}).get(
-        #         "query_key", "query")
-        # ]
-
         logger.info("##### Intention QD")
 
         private_knowledge_config = state["chatbot_config"][
@@ -297,37 +253,27 @@ def intention_detection(state: ChatbotState):
 
         qd_retrievers = [
             OpensearchHybridQueryDocumentRetriever.from_config(
-                **retriver_config
+                **retriver_config,
             )
             for retriver_config in private_knowledge_config["retrievers"]
         ]
 
         qd_retriever = MergerRetriever(retrievers=qd_retrievers)
-        # qd_retriever = OpensearchHybridQueryDocumentRetriever.from_config(
-        #     **retriever_params
-        # )
 
         logger.info("##### Intention QD running")
-        qd_retrievered: List[Document] = asyncio.run(
+        qd_retrievered: List[Document] = run_coroutine_with_new_el(
             qd_retriever.ainvoke(state["query"])
         )
         # output = retrieve_fn(retriever_params)
 
         info_to_log = []
         all_knowledge_retrieved_list = []
-        # for doc in output["result"]["docs"]:
-        #     if doc['score'] >= all_knowledge_in_agent_threshold:
-        #         all_knowledge_retrieved_list.append(doc["page_content"])
-        #     info_to_log.append(
-        #         f"score: {doc['score']}, page_content: {doc['page_content'][:200]}")
         for doc in qd_retrievered:
-            if doc.metadata["retrieval_score"] >= all_knowledge_in_agent_threshold:
-                all_knowledge_retrieved_list.append(
-                    Document(
-                        page_content=doc.page_content, metadata={**doc.metadata}
-                    )
-                    # doc["page_content"]
+            all_knowledge_retrieved_list.append(
+                Document(
+                    page_content=doc.page_content, metadata={**doc.metadata}
                 )
+            )
             info_to_log.append(
                 f"retrieval_score: {doc.metadata['retrieval_score']}, page_content: {doc.page_content[:200]}"
             )
@@ -361,7 +307,6 @@ def intention_detection(state: ChatbotState):
         "intent_fewshot_tools": intent_fewshot_tools,
         "all_knowledge_retrieved_list": all_knowledge_retrieved_list,
         "qq_match_results": qq_match_results,
-        # "qq_match_contexts": qq_match_contexts,
         "intent_type": "intention detected",
     }
 
