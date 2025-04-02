@@ -1,3 +1,6 @@
+import asyncio
 
-async def run_coroutine_task(task):
-    return await task
+def run_coroutine_with_new_el(task):
+    return asyncio.run(task)
+    # loop = asyncio.new_event_loop()
+    # return loop.run_until_complete(task)

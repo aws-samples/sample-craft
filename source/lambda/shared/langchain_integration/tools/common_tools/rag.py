@@ -16,6 +16,7 @@ from langchain.retrievers.merger_retriever import MergerRetriever
 from shared.langchain_integration.models.chat_models import (
     ReasonModelResult,ReasonModelStreamResult
 )
+from shared.utils.asyncio_utils import run_coroutine_with_new_el
 
 logger = get_logger(__name__)
 
@@ -127,7 +128,7 @@ def rag_tool(retriever_config: dict, query=None):
     # qd_retriever = OpensearchHybridQueryDocumentRetriever.from_config(
     #     **retriever_params
     # )
-    retrieved_contexts:List[Document] = asyncio.run(
+    retrieved_contexts:List[Document] = run_coroutine_with_new_el(
         qd_retriever.ainvoke(retriever_params["query"])
     )
 

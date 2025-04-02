@@ -131,7 +131,6 @@ class ModelProvider(ConstantBase):
     SILICONFLOW = "siliconflow"
 
 
-
 class LLMModelType(ConstantBase):
     DEFAULT = "default-model-id"
     CLAUDE_INSTANCE = "anthropic.claude-instant-v1"
@@ -185,7 +184,9 @@ class LLMModelType(ConstantBase):
     CLAUDE_3_HAIKU_EU = "eu.anthropic.claude-3-haiku-20240307-v1:0"
     CLAUDE_3_SONNET_APAC = "apac.anthropic.claude-3-sonnet-20240229-v1:0"
     CLAUDE_3_5_SONNET_APAC = "apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
-    CLAUDE_3_7_SONNET_THINKING_US = "us.anthropic.claude-3-7-sonnet-20250219-v1:0-thinking"
+    CLAUDE_3_7_SONNET_THINKING_US = (
+        "us.anthropic.claude-3-7-sonnet-20250219-v1:0-thinking"
+    )
     CLAUDE_3_7_SONNET_US = "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
     CLAUDE_3_HAIKU_APAC = "apac.anthropic.claude-3-haiku-20240307-v1:0"
     LLAMA3_1_70B_INSTRUCT_US = "us.meta.llama3-1-70b-instruct-v1:0"
@@ -205,6 +206,7 @@ class EmbeddingModelType(ConstantBase):
     # SageMaker
     BCE_EMBEDDING = "bce-embedding-base_v1"
     BGE_M3_EMBEDDING = "bge-m3"
+
 
 class RerankModelType(ConstantBase):
     BGE_RERANKER_V2_M3 = "bge-reranker-v2-m3"
@@ -236,7 +238,7 @@ class ModelTypeV2(ConstantBase):
     EMBEDDING = "embedding"
     LLM = "llm"
     RERANK = "rerank"
-    VLM = "VLM"
+    VLM = "vlm"
 
 
 @unique
@@ -273,6 +275,7 @@ class ContextExtendMethod(ConstantBase):
     NONE = "none"
     WHOLE_DOC = "whole_doc"
     NEIGHBOR = "neighbor"
-    
+
+
 class WSConnectionSignal(ConstantBase):
     STOP = "STOP"

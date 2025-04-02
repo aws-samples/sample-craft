@@ -75,55 +75,33 @@ export class ModelConstruct extends NestedStack implements ModelConstructOutputs
     this.modelRegion = props.config.deployRegion;
     this.modelIamHelper = props.sharedConstructOutputs.iamHelper;
 
-    this.initializeSageMakerConfig();
-    const embeddingAndRerankerModelResources = this.deployEmbeddingAndRerankerEndpoint(props);
-
-    // handle embedding model name setup
-    if (props.config.model.embeddingsModels[0].provider === "Bedrock") {
-      this.defaultEmbeddingModelName = props.config.model.embeddingsModels[0].id;
-    } else if (props.config.model.embeddingsModels[0].provider === "SageMaker") {
-      // Initialize SageMaker-specific configurations
-
-      // // Set up embedding model if it's the BCE+BGE model
-      // if (props.config.model.embeddingsModels.some(model => model.id === 'bce-embedding-base_v1') || props.config.model.rerankModels.some(model => model.id === 'bge-reranker-large')) {
-      //   const embeddingAndRerankerModelResources = this.deployEmbeddingAndRerankerEndpoint(props);
-      //   this.defaultEmbeddingModelName = embeddingAndRerankerModelResources.endpoint.endpointName ?? "";
-      // }
-
-      // User must deploy reranker endpoint since bedrock does not support reranker model in us-east-1
-      this.defaultEmbeddingModelName = embeddingAndRerankerModelResources.endpoint.endpointName ?? "";
-    }
-
-    // Handle knowledge base setup separately
     if (props.config.knowledgeBase.enabled &&
-      props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled &&
-      props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled) {
+      props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
 
-      // Initialize SageMaker config if not already done
-      if (!this.modelExecutionRole) {
-        this.initializeSageMakerConfig();
+      this.initializeSageMakerConfig();
+      const embeddingAndRerankingModelResources = this.deployEmbeddingAndRerankerEndpoint(props);
+      this.defaultEmbeddingModelName = embeddingAndRerankingModelResources.endpoint.endpointName ?? "";
+
+      if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled) {
+        // Deploy knowledge base model if enabled
+        const knowledgeBaseModelResources = this.deployKnowledgeBaseEndpoint(props);
+        this.defaultKnowledgeBaseModelName = knowledgeBaseModelResources.endpoint.endpointName ?? "";
       }
-
-      // Deploy knowledge base model if enabled
-      const knowledgeBaseModelResources = this.deployKnowledgeBaseEndpoint(props);
-      this.defaultKnowledgeBaseModelName = knowledgeBaseModelResources.endpoint.endpointName ?? "";
     }
 
   }
 
   private deployEmbeddingAndRerankerEndpoint(props: ModelConstructProps) {
     // Deploy Embedding and Reranker model
-    let embeddingAndRerankerModelPrefix = "bce-embedding-and-bge-reranker";
-    let embeddingAndRerankerModelVersion = "20250325";
+    let embeddingAndRerankingModelEndpoint = props.config.model.embeddingsModels[0].modelEndpoint;
     let embeddingAndRerankerEndpointInstanceType = "ml.g4dn.4xlarge";
-    let embeddingAndRerankerModelName = embeddingAndRerankerModelPrefix + "-" + embeddingAndRerankerModelVersion;
     let embeddingAndRerankerImageUrl = this.modelPublicEcrAccount + this.modelRegion + this.modelImageUrlDomain + "djl-inference:0.21.0-deepspeed0.8.3-cu117";
     let embeddingAndRerankerModelDataUrl = `s3://${props.config.model.modelConfig.modelAssetsBucket}/bce-embedding-and-bge-reranker_deploy_code/`;
-    let codePrefix = embeddingAndRerankerModelPrefix + "_deploy_code";
+    let codePrefix = "bce-embedding-and-bge-reranker_deploy_code";
 
     const embeddingAndRerankerModelResources = this.deploySagemakerEndpoint({
       modelProps: {
-        modelName: embeddingAndRerankerModelName,
+        modelName: embeddingAndRerankingModelEndpoint + "-model",
         executionRoleArn: this.modelExecutionRole?.roleArn,
         primaryContainer: {
           image: embeddingAndRerankerImageUrl,
@@ -135,11 +113,11 @@ export class ModelConstruct extends NestedStack implements ModelConstructOutputs
         },
       },
       endpointConfigProps: {
-        endpointConfigName: embeddingAndRerankerModelName + "-endpoint-config",
+        endpointConfigName: embeddingAndRerankingModelEndpoint + "-config",
         productionVariants: [
           {
             initialVariantWeight: 1.0,
-            modelName: embeddingAndRerankerModelName,
+            modelName: embeddingAndRerankingModelEndpoint + "-model",
             variantName: this.modelVariantName || "",
             containerStartupHealthCheckTimeoutInSeconds: 15 * 60,
             initialInstanceCount: 1,
@@ -148,14 +126,8 @@ export class ModelConstruct extends NestedStack implements ModelConstructOutputs
         ],
       },
       endpointProps: {
-        endpointName: "bce-embedding-and-bge-reranker-43972-endpoint",
-        endpointConfigName: embeddingAndRerankerModelName + "-endpoint-config",
-        tags: [
-          {
-            key: "version",
-            value: embeddingAndRerankerModelVersion,
-          }
-        ]
+        endpointName: embeddingAndRerankingModelEndpoint,
+        endpointConfigName: embeddingAndRerankingModelEndpoint + "-config",
       },
     });
 
