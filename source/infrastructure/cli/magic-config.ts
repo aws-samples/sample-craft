@@ -13,13 +13,15 @@ import {
 } from "../lib/shared/types";
 import { LIB_VERSION } from "./version.js";
 
+const embeddingAndRerankingModelEndpoint = "bce-embedding-and-bge-reranker-250331-endpoint";
+
 const embeddingModels = [
   {
     provider: "SageMaker",
     id: "bce-embedding-base_v1",
     commitId: "43972580a35ceacacd31b95b9f430f695d07dde9",
     dimensions: 768,
-    modelEndpoint: "bce-embedding-and-bge-reranker-43972-endpoint",
+    modelEndpoint: embeddingAndRerankingModelEndpoint,
   },
   {
     provider: "Bedrock",
@@ -33,13 +35,7 @@ const embeddingModels = [
     id: "cohere.embed-english-v3",
     commitId: "",
     dimensions: 1024,
-  },
-  {
-    provider: "Bedrock",
-    id: "amazon.titan-embed-text-v1",
-    commitId: "",
-    dimensions: 1024,
-  },
+  }
 ];
 
 let rerankModels = [
@@ -50,7 +46,7 @@ let rerankModels = [
   {
     provider: "SageMaker",
     id: "bge-reranker-large",
-    modelEndpoint: "bce-embedding-and-bge-reranker-43972-endpoint",
+    modelEndpoint: embeddingAndRerankingModelEndpoint,
   },
 ]
 
@@ -148,6 +144,7 @@ async function getAwsAccountAndRegion() {
         : "unsupported";
       options.useCustomDomain = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain;
       options.customDomainEndpoint = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainEndpoint;
+      options.customDomainSecretArn = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
       options.enableIntelliAgentKbModel = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled;
       options.knowledgeBaseModelEcrRepository = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrRepository;
       options.knowledgeBaseModelEcrImageTag = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrImageTag;
@@ -313,6 +310,27 @@ async function processCreateOptions(options: any): Promise<void> {
       },
     },
     {
+      type: "input",
+      name: "customDomainSecretArn",
+      message: "Please enter the secret arn containing the credentials for the custom domain",
+      initial: options.customDomainSecretArn ?? "",
+      validate(customDomainSecret: string) {
+        return (this as any).skipped ||
+          RegExp(/^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/_+=.@-]+$/i).test(customDomainSecret)
+          ? true
+          : "Enter a valid secret arn (e.g., arn:aws:secretsmanager:region:account-id:secret:my-secret-name)";
+      },
+      skip(): boolean {
+        if (!(this as any).state.answers.enableKnowledgeBase ||
+          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
+          (this as any).state.answers.intelliAgentKbVectorStoreType !== "opensearch" ||
+          !(this as any).state.answers.useCustomDomain) {
+          return true;
+        }
+        return false;
+      },
+    },
+    {
       type: "confirm",
       name: "enableIntelliAgentKbModel",
       message: "Do you want to inject PDF files into your knowledge base?",
@@ -386,23 +404,6 @@ async function processCreateOptions(options: any): Promise<void> {
       initial: options.enableConnect ?? false,
       skip(): boolean {
         return (!(this as any).state.answers.enableChat || deployInChina);
-      },
-    },
-    {
-      type: "select",
-      name: "defaultEmbedding",
-      message: "Select an embedding model, it is used when injecting and retrieving knowledges or intentions",
-      choices: embeddingModels.map((m) => ({ name: m.id, value: m })),
-      initial: options.defaultEmbedding,
-      validate(value: string) {
-        if ((this as any).state.answers.enableChat) {
-          return value ? true : "Select a default embedding model";
-        }
-
-        return true;
-      },
-      skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase || deployInChina);
       },
     },
     {
@@ -504,6 +505,7 @@ async function processCreateOptions(options: any): Promise<void> {
     ]
 
   } else {
+    answers.defaultEmbedding = "bce-embedding-base_v1";
     answers.defaultRerankModel = "bge-reranker-large";
     answers.defaultLlm = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
     answers.defaultVlm = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
@@ -524,6 +526,7 @@ async function processCreateOptions(options: any): Promise<void> {
               enabled: answers.intelliAgentKbVectorStoreType === "opensearch",
               useCustomDomain: answers.useCustomDomain,
               customDomainEndpoint: answers.customDomainEndpoint,
+              customDomainSecretArn: answers.customDomainSecretArn,
             },
           },
           knowledgeBaseModel: {

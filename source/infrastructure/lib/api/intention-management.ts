@@ -77,6 +77,13 @@ export class IntentionApi extends Construct {
     this.iamHelper = props.iamHelper;
     this.genMethodOption = props.genMethodOption;
 
+    let customDomainSecretArn;
+    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
+      customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
+    } else {
+      customDomainSecretArn = "";
+    }
+
     const intentionLambda = new LambdaFunction(scope, "IntentionLambda", {
       runtime: Runtime.PYTHON_3_12,
       memorySize: 1024,
@@ -100,6 +107,7 @@ export class IntentionApi extends Construct {
         S3_BUCKET: this.s3Bucket,
         EMBEDDING_MODEL_ENDPOINT: this.defaultEmbeddingModelName,
         AOS_ENDPOINT: this.domainEndpoint,
+        AOS_SECRET_ARN: customDomainSecretArn,
         KNOWLEDGE_BASE_ENABLED: this.config.knowledgeBase.enabled.toString(),
         KNOWLEDGE_BASE_TYPE: JSON.stringify(this.config.knowledgeBase.knowledgeBaseType || {}),
         BEDROCK_REGION: this.config.chat.bedrockRegion,
@@ -109,7 +117,7 @@ export class IntentionApi extends Construct {
     const intentionLambdaFunction = intentionLambda.function;
     intentionLambdaFunction.addToRolePolicy(this.iamHelper.dynamodbStatement);
     intentionLambdaFunction.addToRolePolicy(this.iamHelper.logStatement);
-    intentionLambdaFunction.addToRolePolicy(this.iamHelper.secretStatement);
+    intentionLambdaFunction.addToRolePolicy(this.iamHelper.secretsManagerStatement);
     intentionLambdaFunction.addToRolePolicy(this.iamHelper.esStatement);
     intentionLambdaFunction.addToRolePolicy(this.iamHelper.s3Statement);
     intentionLambdaFunction.addToRolePolicy(this.iamHelper.bedrockStatement);
