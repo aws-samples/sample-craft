@@ -63,7 +63,7 @@ export class LambdaLayers {
             // "*.png",
             // "*.md",
             // "*.zip",
-            // "lambda_main/retail/size/*"],
+            // "lambda_main/retail/size/*"
           ]
         }
       },
