@@ -97,7 +97,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
 
     const lambdaLayers = new LambdaLayers(this);
     const apiLambdaOnlineSourceLayer = lambdaLayers.createOnlineMainLayer();
-    const sharedLayer = lambdaLayers.createSharedLayer();
+    // const sharedLayer = lambdaLayers.createSharedLayer();
     // const modelLayer = lambdaLayers.createModelDeploymentLayer();
 
 
@@ -153,7 +153,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
         BEDROCK_AWS_ACCESS_KEY_ID: props.config.chat.bedrockAk || "",
         BEDROCK_AWS_SECRET_ACCESS_KEY: props.config.chat.bedrockSk || ""
       },
-      layers: [sharedLayer, apiLambdaOnlineSourceLayer],
+      layers: [apiLambdaOnlineSourceLayer],
     });
     this.lambdaOnlineMain = lambdaOnlineMain.function;
 
