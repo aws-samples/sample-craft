@@ -184,6 +184,8 @@ def initialize_retriever(
                         f"When using {ModelProvider.SAGEMAKER} provider, "
                         "rerankModelEndpoint must be provided"
                     )
+                if not request.rerankTargetModel:
+                    request.rerankTargetModel = "bge_reranker_model.tar.gz"
 
             # Use the top-level rerank parameters
             final_rerank_config = {
