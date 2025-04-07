@@ -1,24 +1,19 @@
-from . import RerankModelBase
-from shared.utils.logger_utils import get_logger
-from ..model_config import (
-    BEDROCK_RERANK_CONFIGS
-)
-from shared.constant import (
-    ModelProvider
-)
 import json
-from langchain_core.documents import BaseDocumentCompressor,Document
 import os
-import boto3 
-from typing import Any, Dict, List, Optional, Sequence, Union
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing_extensions import Self
-from langchain_aws.document_compressors.rerank import BedrockRerank as _BedrockRerank
-import sys 
+import sys
 from copy import deepcopy
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+import boto3
 from langchain_core.callbacks.manager import Callbacks
-from ..model_config import BEDROCK_RERANK_CONFIGS
+from langchain_core.documents import BaseDocumentCompressor, Document
+from pydantic import ConfigDict, Field, model_validator
+from shared.constant import ModelProvider
 from shared.utils.boto3_utils import get_boto3_client
+from shared.utils.logger_utils import get_logger
+
+from ..model_config import BEDROCK_RERANK_CONFIGS
+from . import RerankModelBase
 
 logger = get_logger("bedrock_rerank_model")
 
@@ -51,14 +46,16 @@ class BedrockRerank(BaseDocumentCompressor):
         extra="forbid",
         protected_namespaces=(),
     )
-    
+
     @model_validator(mode="before")
     @classmethod
     def initialize_client(cls, values: Dict[str, Any]) -> Any:
         """Initialize the AWS Bedrock client."""
         if not values.get("client"):
             session = (
-                boto3.Session(profile_name=values.get("credentials_profile_name"))
+                boto3.Session(
+                    profile_name=values.get("credentials_profile_name")
+                )
                 if values.get("credentials_profile_name", None)
                 else boto3.Session()
             )
@@ -67,12 +64,12 @@ class BedrockRerank(BaseDocumentCompressor):
                 region_name=values.get("region_name"),
             )
         return values
-    
+
     def rerank(
         self,
         documents: Sequence[Union[str, Document]],
         query: str,
-        top_n: Optional[int] = None
+        top_n: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Returns an ordered list of documents based on their relevance to the query.
 
@@ -90,18 +87,16 @@ class BedrockRerank(BaseDocumentCompressor):
 
         # Serialize documents for the Bedrock API
         serialized_documents = [
-            doc.page_content
-            if isinstance(doc,Document)
-            else doc
+            doc.page_content if isinstance(doc, Document) else doc
             for doc in documents
         ]
         top_n = top_n or self.top_n
 
         request_body = {
-            "query":query,
+            "query": query,
             "documents": serialized_documents,
-            "top_n":top_n,
-            **self.model_kwargs
+            "top_n": top_n,
+            **self.model_kwargs,
         }
         response = self.client.invoke_model(
             modelId=self.model_id,
@@ -133,12 +128,15 @@ class BedrockRerank(BaseDocumentCompressor):
         compressed = []
         for res in self.rerank(documents, query):
             doc = documents[res["index"]]
-            doc_copy = Document(doc.page_content, metadata=deepcopy(doc.metadata))
+            doc_copy = Document(
+                id=doc.id,
+                page_content=doc.page_content,
+                metadata=deepcopy(doc.metadata),
+            )
             doc_copy.metadata["relevance_score"] = res["relevance_score"]
             compressed.append(doc_copy)
         return compressed
-    
-    
+
 
 class BedrockRerankBaseModel(RerankModelBase):
     model_provider = ModelProvider.BEDROCK
@@ -157,25 +155,27 @@ class BedrockRerankBaseModel(RerankModelBase):
         )
         br_aws_access_key_id = os.environ.get("BEDROCK_AWS_ACCESS_KEY_ID", "")
         br_aws_secret_access_key = os.environ.get(
-            "BEDROCK_AWS_SECRET_ACCESS_KEY", "")
+            "BEDROCK_AWS_SECRET_ACCESS_KEY", ""
+        )
         client = None
 
         if br_aws_access_key_id != "" and br_aws_secret_access_key != "":
             logger.info(
-                f"Bedrock Using AWS AKSK from environment variables. Key ID: {br_aws_access_key_id}")
+                f"Bedrock Using AWS AKSK from environment variables. Key ID: {br_aws_access_key_id}"
+            )
 
             client = get_boto3_client(
-                "bedrock-runtime", 
+                "bedrock-runtime",
                 region_name=region_name,
-                aws_access_key_id=br_aws_access_key_id, 
-                aws_secret_access_key=br_aws_secret_access_key
+                aws_access_key_id=br_aws_access_key_id,
+                aws_secret_access_key=br_aws_secret_access_key,
             )
-        
+
         if client is None:
             client = get_boto3_client(
-                "bedrock-runtime", 
+                "bedrock-runtime",
                 profile_name=credentials_profile_name,
-                region_name=region_name
+                region_name=region_name,
             )
 
         extra_kwargs = {k: kwargs[k] for k in ["top_n"] if k in kwargs}
@@ -184,19 +184,19 @@ class BedrockRerankBaseModel(RerankModelBase):
 
         model_kwargs = {
             **default_model_kwargs,
-            **kwargs.get("model_kwargs", {})
+            **kwargs.get("model_kwargs", {}),
         }
-                                          
+
         extra_kwargs.update({"model_kwargs": model_kwargs})
-        logger.info('init BedrockRerank...')
+        logger.info("init BedrockRerank...")
         rerank_model = BedrockRerank(
             client=client,
             # credentials_profile_name=credentials_profile_name,
             # region_name=region_name,
             model_id=cls.model_id,
-            **extra_kwargs
+            **extra_kwargs,
         )
-        logger.info('after init BedrockRerank...')
+        logger.info("after init BedrockRerank...")
         return rerank_model
 
 
