@@ -640,28 +640,24 @@ paths:
                   type: boolean
                   description: Whether to use reranking
                   default: true
-                rerankConfig:
-                  type: object
-                  description: Optional reranking configuration, will use default rerank if not specified
-                  properties:
-                    rerankModelProvider:
-                      type: string
-                      description: Provider of reranking model
-                    rerankModelId:
-                      type: string
-                      description: ID of reranking model
-                    baseUrl:
-                      type: string
-                      description: Optional base URL
-                    apiKeyArn:
-                      type: string
-                      description: Optional API key ARN
-                    reRankModelEndpoint:
-                      type: string
-                      description: Optional endpoint for reranking model
-                    targetModel:
-                      type: string
-                      description: Optional target model
+                rerankModelProvider:
+                  type: string
+                  description: Provider of reranking model (e.g., "openai", "sagemaker")
+                rerankModelId:
+                  type: string
+                  description: ID of reranking model
+                rerankBaseUrl:
+                  type: string
+                  description: Base URL for reranking model (required for OpenAI provider)
+                rerankApiKeyArn:
+                  type: string
+                  description: API key ARN for reranking model (required for OpenAI provider)
+                rerankModelEndpoint:
+                  type: string
+                  description: Endpoint for reranking model (required for SageMaker provider)
+                rerankTargetModel:
+                  type: string
+                  description: Target model for reranking
                 hideMetadataDetails:
                   type: boolean
                   description: Whether to hide certain metadata details
