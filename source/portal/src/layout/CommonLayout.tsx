@@ -30,7 +30,6 @@ import {
   OIDC_PREFIX,
   OIDC_PROVIDER,
 } from 'src/utils/const';
-// import { useAuth } from 'react-oidc-context';
 import ConfigContext from 'src/context/config-context';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CustomBreadCrumb, { BreadCrumbType } from './CustomBreadCrumb';
@@ -166,6 +165,14 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
         }}
         utilities={[
           {
+            type: "button",
+            iconName: "bug",
+            title: "Debug",
+            ariaLabel: "Notifications (unread)",
+            badge: false,
+            disableUtilityCollapse: false
+          },
+          {
             type: 'menu-dropdown',
             text: ZH_LANGUAGE_LIST.includes(i18n.language) ? ZH_TEXT : EN_TEXT,
             onItemClick: (item) => {
@@ -184,12 +191,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
             onItemClick: (item) => {
               if (item.detail.id === 'signout') {
                 if (fullLogoutUrl) {
-                  // auth.removeUser();
                   clearStorage();
                   logout();
                   window.location.href = fullLogoutUrl;
                 }
-                // auth.removeUser();
               }
             },
             items: [{ id: 'signout', text: t('signOut') }],
