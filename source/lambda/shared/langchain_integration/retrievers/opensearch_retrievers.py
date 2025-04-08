@@ -14,16 +14,6 @@ from ..models.embedding_models import EmbeddingModel
 from ..models.rerank_models import RerankModel
 from .databases.opensearch import OpenSearchHybridSearch
 
-# from functools import lru_cache
-# from cachetools import cached, LRUCache
-# from asyncache import cached as async_cached
-# import cachetools
-
-# retriever_cache = LRUCache(maxsize=128)
-
-# def custom_key(*args, **kwargs):
-#     return cachetools.keys.hashkey(str((args,kwargs)))
-
 logger = get_logger(__name__)
 
 
@@ -31,7 +21,7 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
     database: OpenSearchHybridSearch
     embeddings: Embeddings
     reranker: Union[BaseDocumentCompressor, None] = None
-    bm25_search_context_extend_method: str = ContextExtendMethod.WHOLE_DOC
+    bm25_search_context_extend_method: str = ContextExtendMethod.NEIGHBOR
     bm25_search_whole_doc_max_size: int = 100
     bm25_search_chunk_window_size: int = 10
     bm25_search_threshold: float = Threshold.BM25_SEARCH_THRESHOLD
@@ -39,7 +29,7 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
 
     bm25_search_top_k: int = 5
 
-    vector_search_context_extend_method: str = ContextExtendMethod.WHOLE_DOC
+    vector_search_context_extend_method: str = ContextExtendMethod.NEIGHBOR
     vector_search_chunk_window_size: int = 10
     vector_search_top_k: int = 5
     vector_search_whole_doc_max_size: int = 100
@@ -100,7 +90,7 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
 
         return query_dict
 
-    def _build_exact_search_query(self, query_term, field, size):
+    def _build_exact_search_query(self, query_term:Union[str,List], field:str, size:int):
         """
         Build basic search query
 
@@ -111,11 +101,13 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
 
         :return: aos response json
         """
+        if isinstance(query_term, str):
+            query_term = [query_term]
         query = {
             "size": size,
             "query": {
                 "bool": {
-                    "should": [{"match_phrase": {field: query_term}}],
+                    "should": [{"match_phrase": {field: qt}} for qt in query_term],
                 }
             },
             "sort": [{"_score": {"order": "desc"}}],
@@ -153,8 +145,6 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
             for r in results
             if r.metadata["retrieval_score"] >= bm25_search_threshold
         ]
-        for doc in results:
-            doc.metadata["search_by"] = "bm25"
         return results
 
     async def avector_search(self, query: str, **kwargs):
@@ -177,8 +167,6 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
             if r.metadata["retrieval_score"] >= vector_search_threshold
         ]
 
-        for doc in results:
-            doc.metadata["search_by"] = "vector"
         return results
 
     async def _aget_embedding(self, query: str):
@@ -206,6 +194,16 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
         )
         compressed_output_docs = compressed_output_docs[:rerank_top_k]
         return compressed_output_docs
+
+
+    @staticmethod
+    def add_search_by_tag(search_results:List[Document],tag:str):
+        for doc in search_results:
+            doc.metadata["search_by"] = tag
+            for extend_doc in doc.metadata["extend_chunks"]:
+                extend_doc.metadata["search_by"] = tag
+        return search_results
+
 
     async def __aget_relevant_documents(
         self,
@@ -248,7 +246,10 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
             # logger.info('await vector search...')
             vector_search_results = await vector_search_task
             # logger.info('completed vector search...')
-
+        
+        # add search by tag
+        bm25_search_results = self.add_search_by_tag(bm25_search_results, "bm25")
+        vector_search_results = self.add_search_by_tag(vector_search_results, "vector")
         # rerank
         if self.reranker is not None:
             output_docs = bm25_search_results + vector_search_results
@@ -363,7 +364,9 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
             next_chunk_id = f"{chunk_id_prefix}-{next_section_id}"
             opensearch_query_response = await self.database.asearch(
                 self._build_exact_search_query(
-                    query_term=next_chunk_id, field="metadata.chunk_id", size=1
+                    query_term=next_chunk_id, 
+                    field="metadata.chunk_id", 
+                    size=1
                 )
                 # index_name=index_name,
                 # query_type="basic",
@@ -387,93 +390,162 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
                 break
         return [previous_content_list, next_content_list]
 
-    async def aget_context(
+
+    async def aget_neighbor_context(
         self, doc: Document, window_size: int
     ) -> Tuple[List[Document], List[Document]]:
-        previous_content_list = []
-        next_content_list = []
-        if "chunk_id" not in doc.metadata:
-            return previous_content_list, next_content_list
-        chunk_id = doc.metadata["chunk_id"]
-        inner_previous_content_list, inner_next_content_list = (
-            await self.aget_sibling_context(chunk_id, window_size)
+        previous_doc_list = []
+        next_doc_list = []
+        chunk_id_field = self.database.ordered_chunk_id_field
+        if chunk_id_field not in doc.metadata:
+            return previous_doc_list, next_doc_list
+        chunk_id = doc.metadata[chunk_id_field]
+        assert isinstance(chunk_id, int), f"chunk_id: {chunk_id} must be an integer, or try other chunk exetend methods"
+        previous_chunk_ids = list(range(max(chunk_id - window_size, 0), chunk_id))
+        next_chunk_ids = list(range(chunk_id + 1, chunk_id + window_size + 1))
+        
+        previous_chunk_hits = []
+        next_chunk_hits = []
+        previous_chunk_task = None
+        next_chunk_task = None
+        if previous_chunk_ids:
+            previous_chunk_task = asyncio.create_task(
+                self.database.asearch(
+                self._build_exact_search_query(
+                    query_term=previous_chunk_ids,
+                    field=f"metadata.{chunk_id_field}",
+                    size=len(previous_chunk_ids)
+                    )
+                )
+            )
+        if next_chunk_ids:
+            next_chunk_task = asyncio.create_task(
+                self.database.asearch(
+                self._build_exact_search_query(
+                    query_term=next_chunk_ids,
+                    field=f"metadata.{chunk_id_field}",
+                    size=len(next_chunk_ids)
+                    )
+                )
+            )
+        
+        if previous_chunk_task is not None:
+            previous_chunk_hits = await previous_chunk_task
+        
+        if next_chunk_task is not None:
+            next_chunk_hits = await next_chunk_task
+
+        if previous_chunk_hits:
+            previous_doc_list = [
+                Document(id=r["_id"],
+                    page_content=r["_source"][self.database.text_field],
+                        metadata={
+                            **r["_source"]["metadata"],
+                        },
+                    )
+                for r in previous_chunk_hits["hits"]["hits"]
+            ]
+        
+        if next_chunk_hits:
+            next_doc_list = [
+                Document(id=r["_id"],
+                    page_content=r["_source"][self.database.text_field],
+                        metadata={
+                            **r["_source"]["metadata"],
+                        },
+                    )
+                for r in next_chunk_hits["hits"]["hits"]
+            ]
+
+        previous_doc_list = sorted(
+            previous_doc_list,
+            key=lambda x:x.metadata[chunk_id_field]
         )
-        if (
-            len(inner_previous_content_list) == window_size
-            and len(inner_next_content_list) == window_size
-        ):
-            return inner_previous_content_list, inner_next_content_list
+        next_doc_list = sorted(
+            next_doc_list,
+            key=lambda x:x.metadata[chunk_id_field]
+        )   
+        return previous_doc_list + next_doc_list
 
-        if "heading_hierarchy" not in doc.metadata:
-            return [previous_content_list, next_content_list]
-        if "previous" in doc.metadata["heading_hierarchy"]:
-            previous_chunk_id = doc.metadata["heading_hierarchy"]["previous"]
-            previous_pos = 0
-            while (
-                previous_chunk_id
-                and previous_chunk_id.startswith("$")
-                and previous_pos < window_size
-            ):
-                opensearch_query_response = await self.database.asearch(
-                    self._build_exact_search_query(
-                        query_term=previous_chunk_id,
-                        field="metadata.chunk_id",
-                        size=1,
-                    )
-                )
-                if len(opensearch_query_response["hits"]["hits"]) > 0:
-                    r = opensearch_query_response["hits"]["hits"][0]
-                    previous_chunk_id = r["_source"]["metadata"][
-                        "heading_hierarchy"
-                    ]["previous"]
-                    previous_content_list.insert(
-                        0,
-                        Document(
-                            id=r["_id"],
-                            page_content=r["_source"][self.database.text_field],
-                            metadata={
-                                **r["_source"]["metadata"],
-                            },
-                        ),
-                    )
-                    previous_pos += 1
-                else:
-                    break
-        if "next" in doc.metadata["heading_hierarchy"]:
-            next_chunk_id = doc.metadata["heading_hierarchy"]["next"]
-            next_pos = 0
-            while (
-                next_chunk_id
-                and next_chunk_id.startswith("$")
-                and next_pos < window_size
-            ):
-                opensearch_query_response = await self.database.asearch(
-                    self._build_exact_search_query(
-                        query_term=next_chunk_id,
-                        field="metadata.chunk_id",
-                        size=1,
-                    )
-                )
-                if len(opensearch_query_response["hits"]["hits"]) > 0:
-                    r = opensearch_query_response["hits"]["hits"][0]
-                    next_chunk_id = r["_source"]["metadata"][
-                        "heading_hierarchy"
-                    ]["next"]
-                    next_content_list.append(
-                        Document(
-                            id=r["_id"],
-                            page_content=r["_source"][self.database.text_field],
-                            metadata={
-                                **r["_source"]["metadata"],
-                            },
-                        )
-                    )
-                    next_pos += 1
-                else:
-                    break
-        return [previous_content_list, next_content_list]
+        # inner_previous_content_list, inner_next_content_list = (
+        #     await self.aget_sibling_context(chunk_id, window_size)
+        # )
+        # if (
+        #     len(inner_previous_content_list) == window_size
+        #     and len(inner_next_content_list) == window_size
+        # ):
+        #     return inner_previous_content_list, inner_next_content_list
 
-    async def aget_doc(self, file_path, size=100) -> list[Document]:
+        # if "heading_hierarchy" not in doc.metadata:
+        #     return [previous_content_list, next_content_list]
+        # if "previous" in doc.metadata["heading_hierarchy"]:
+        #     previous_chunk_id = doc.metadata["heading_hierarchy"]["previous"]
+        #     previous_pos = 0
+        #     while (
+        #         previous_chunk_id
+        #         and previous_chunk_id.startswith("$")
+        #         and previous_pos < window_size
+        #     ):
+        #         opensearch_query_response = await self.database.asearch(
+        #             self._build_exact_search_query(
+        #                 query_term=previous_chunk_id,
+        #                 field="metadata.chunk_id",
+        #                 size=1,
+        #             )
+        #         )
+        #         if len(opensearch_query_response["hits"]["hits"]) > 0:
+        #             r = opensearch_query_response["hits"]["hits"][0]
+        #             previous_chunk_id = r["_source"]["metadata"][
+        #                 "heading_hierarchy"
+        #             ]["previous"]
+        #             previous_content_list.insert(
+        #                 0,
+        #                 Document(
+        #                     id=r["_id"],
+        #                     page_content=r["_source"][self.database.text_field],
+        #                     metadata={
+        #                         **r["_source"]["metadata"],
+        #                     },
+        #                 ),
+        #             )
+        #             previous_pos += 1
+        #         else:
+        #             break
+        # if "next" in doc.metadata["heading_hierarchy"]:
+        #     next_chunk_id = doc.metadata["heading_hierarchy"]["next"]
+        #     next_pos = 0
+        #     while (
+        #         next_chunk_id
+        #         and next_chunk_id.startswith("$")
+        #         and next_pos < window_size
+        #     ):
+        #         opensearch_query_response = await self.database.asearch(
+        #             self._build_exact_search_query(
+        #                 query_term=next_chunk_id,
+        #                 field="metadata.chunk_id",
+        #                 size=1,
+        #             )
+        #         )
+        #         if len(opensearch_query_response["hits"]["hits"]) > 0:
+        #             r = opensearch_query_response["hits"]["hits"][0]
+        #             next_chunk_id = r["_source"]["metadata"][
+        #                 "heading_hierarchy"
+        #             ]["next"]
+        #             next_content_list.append(
+        #                 Document(
+        #                     id=r["_id"],
+        #                     page_content=r["_source"][self.database.text_field],
+        #                     metadata={
+        #                         **r["_source"]["metadata"],
+        #                     },
+        #                 )
+        #             )
+        #             next_pos += 1
+        #         else:
+        #             break
+        # return [previous_content_list, next_content_list]
+
+    async def aget_whole_doc(self, file_path, size=100) -> list[Document]:
         """
         get whole doc according to file_path
         """
@@ -498,11 +570,11 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
         chunk_id_set = set()
         for r in opensearch_query_response["hits"]["hits"]:
             try:
-                if "chunk_id" not in r["_source"]["metadata"] or not r[
+                if self.database.chunk_id_field not in r["_source"]["metadata"] or not r[
                     "_source"
-                ]["metadata"]["chunk_id"].startswith("$"):
+                ]["metadata"][self.database.chunk_id_field].startswith("$"):
                     continue
-                chunk_id = r["_source"]["metadata"]["chunk_id"]
+                chunk_id = r["_source"]["metadata"][self.database.chunk_id_field]
                 content_type = r["_source"]["metadata"]["content_type"]
                 chunk_group_id = int(chunk_id.split("-")[0].strip("$"))
                 chunk_section_id = int(chunk_id.split("-")[-1])
@@ -518,7 +590,7 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
                     page_content=r["_source"][self.database.text_field],
                     metadata={
                         **r["_source"]["metadata"],
-                        # "chunk_id": chunk_id,
+                        # self.database.chunk_id_field: chunk_id,
                         # "content_type": content_type,
                         # "source": file_path,
                         "chunk_group_id": chunk_group_id,
@@ -580,7 +652,7 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
         if context_extend_method == ContextExtendMethod.WHOLE_DOC:
             extend_chunks_list: list[list[Document]] = await asyncio.gather(
                 *[
-                    self.aget_doc(
+                    self.aget_whole_doc(
                         result.metadata[self.database.source_field],
                         size=whole_doc_max_size,
                     )
@@ -599,21 +671,13 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
         if context_extend_method == ContextExtendMethod.NEIGHBOR:
             extend_chunks_list: list[list[Document]] = await asyncio.gather(
                 *[
-                    self.aget_context(result, chunk_window_size)
+                    self.aget_neighbor_context(result, chunk_window_size)
                     for result in results
                 ]
             )
-            # self.get_context(
-            #     results,
-            #     chunk_window_size
-            # )
 
             for result, extend_chunks in zip(results, extend_chunks_list):
                 result.metadata["extend_chunks"] = extend_chunks
-                # if whole_doc:
-                #     if result["doc"] not in whole_doc:
-                #         whole_doc += "\n" + result["doc"]
-                #     result["doc"] = whole_doc
             return results
 
         raise ValueError(
@@ -799,8 +863,6 @@ class OpensearchHybridQueryQuestionRetriever(OpensearchHybridRetrieverBase):
         )
         search_res = await self.database.asearch(search_query_dict)
         results = await self._aextend_faq_results(search_res, **kwargs)
-        for doc in results:
-            doc.metadata["search_by"] = "vector"
         return results
 
     async def aextend_bm25_search_results(
