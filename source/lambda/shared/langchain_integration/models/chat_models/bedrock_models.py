@@ -50,6 +50,7 @@ class BedrockBaseModel(ChatModelBase):
         model_kwargs = model_kwargs or {}
         model_kwargs = {**cls.default_model_kwargs, **model_kwargs}
 
+
         credentials_profile_name = (
             kwargs.get("credentials_profile_name", None)
             or os.environ.get("AWS_PROFILE", None)
@@ -64,9 +65,8 @@ class BedrockBaseModel(ChatModelBase):
         br_aws_secret_access_key = os.environ.get(
             "BEDROCK_AWS_SECRET_ACCESS_KEY", "")
 
-        
         model_name = cls.model or cls.model_id
-
+        guardrail_config = kwargs.get('guardrail_config',None)
 
         if br_aws_access_key_id != "" and br_aws_secret_access_key != "":
             logger.info(
@@ -86,6 +86,7 @@ class BedrockBaseModel(ChatModelBase):
                 enable_any_tool_choice=cls.enable_any_tool_choice,
                 enable_prefill=cls.enable_prefill,
                 is_reasoning_model=cls.is_reasoning_model,
+                guardrail_config=guardrail_config,
                 **model_kwargs,
             )
         else:
@@ -102,6 +103,7 @@ class BedrockBaseModel(ChatModelBase):
                 enable_any_tool_choice=cls.enable_any_tool_choice,
                 enable_prefill=cls.enable_prefill,
                 is_reasoning_model=cls.is_reasoning_model,
+                guardrail_config=guardrail_config,
                 **model_kwargs,
             )
         llm.client.converse_stream = llm_messages_print_decorator(

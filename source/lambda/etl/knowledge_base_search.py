@@ -4,7 +4,12 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 from pydantic import BaseModel
-from shared.constant import ContextExtendMethod, Threshold
+from shared.constant import (
+    ContextExtendMethod,
+    ModelProvider,
+    RerankModelType,
+    Threshold,
+)
 from shared.langchain_integration.retrievers.opensearch_retrievers import (
     OpensearchHybridQueryDocumentRetriever,
 )
@@ -36,7 +41,13 @@ class KnowledgeBaseRequest(BaseModel):
     vectorSearchTopK: int
     bm25SearchTopK: int
     useRerank: bool = True
-    rerankConfig: Optional[Dict] = None
+    # New rerank fields moved from nested config to top level
+    rerankModelProvider: Optional[str] = None
+    rerankModelId: Optional[str] = None
+    rerankBaseUrl: Optional[str] = None
+    rerankApiKeyArn: Optional[str] = None
+    rerankModelEndpoint: Optional[str] = None
+    rerankTargetModel: Optional[str] = None
     hideMetadataDetails: bool = (
         True  # Parameter to hide certain metadata details
     )
@@ -130,6 +141,13 @@ def initialize_retriever(
     Returns:
         Initialized retriever
     """
+
+    if request.searchMode not in ["keywords", "vector", "mix"]:
+        raise ValueError(
+            f"Invalid searchMode: {request.searchMode}. "
+            f"Must be one of {', '.join(['keywords', 'vector', 'mix'])}"
+        )
+
     embedding_config, rerank_config_from_ddb = get_model_from_ddb(
         group_name, request.indexName
     )
@@ -137,35 +155,46 @@ def initialize_retriever(
     # Handle rerank configuration logic
     final_rerank_config = None
     if request.useRerank:
-        if request.rerankConfig:
-            # Validate the provided rerank config
-            required_fields = ["rerankModelProvider", "rerankModelId"]
-            missing_fields = [
-                field
-                for field in required_fields
-                if field not in request.rerankConfig
-            ]
-
-            if missing_fields:
+        if request.rerankModelProvider and request.rerankModelId:
+            # Validate rerank model provider
+            if not ModelProvider.has_value(request.rerankModelProvider):
                 raise ValueError(
-                    f"Missing required fields in rerankConfig: {', '.join(missing_fields)}"
+                    f"Invalid rerankModelProvider: {request.rerankModelProvider}. "
+                    f"Must be one of {', '.join(ModelProvider.all_values())}"
                 )
 
-            # Convert to our internal format
-            provider = request.rerankConfig.get("rerankModelProvider")
-            model_id = request.rerankConfig.get("rerankModelId")
+            # Validate rerank model ID
+            if not RerankModelType.has_value(request.rerankModelId):
+                raise ValueError(
+                    f"Invalid rerankModelId: {request.rerankModelId}. "
+                    f"Must be one of {', '.join(RerankModelType.all_values())}"
+                )
 
+            # Validate provider-specific requirements
+            if request.rerankModelProvider == ModelProvider.OPENAI:
+                if not request.rerankBaseUrl or not request.rerankApiKeyArn:
+                    raise ValueError(
+                        f"When using {ModelProvider.OPENAI} provider, "
+                        "rerankBaseUrl and rerankApiKeyArn must be provided"
+                    )
+
+            if request.rerankModelProvider == ModelProvider.SAGEMAKER:
+                if not request.rerankModelEndpoint:
+                    raise ValueError(
+                        f"When using {ModelProvider.SAGEMAKER} provider, "
+                        "rerankModelEndpoint must be provided"
+                    )
+                if not request.rerankTargetModel:
+                    request.rerankTargetModel = "bge_reranker_model.tar.gz"
+
+            # Use the top-level rerank parameters
             final_rerank_config = {
-                "provider": provider,
-                "model_id": model_id,
-                "base_url": request.rerankConfig.get("baseUrl", ""),
-                "api_key_arn": request.rerankConfig.get("apiKeyArn", ""),
-                "sagemaker_endpoint_name": request.rerankConfig.get(
-                    "reRankModelEndpoint"
-                ),
-                "sagemaker_target_model": request.rerankConfig.get(
-                    "targetModel", ""
-                ),
+                "provider": request.rerankModelProvider,
+                "model_id": request.rerankModelId,
+                "base_url": request.rerankBaseUrl or "",
+                "api_key_arn": request.rerankApiKeyArn or "",
+                "sagemaker_endpoint_name": request.rerankModelEndpoint,
+                "sagemaker_target_model": request.rerankTargetModel or "",
                 "model_kwargs": {},
             }
         else:
@@ -258,12 +287,11 @@ def lambda_handler(event, context):
         if authorizer_type == "lambda_authorizer":
             claims = json.loads(event["requestContext"]["authorizer"]["claims"])
 
-        if "use_api_key" in claims:
-            group_name = get_query_parameter(event, "GroupName", "Admin")
-        else:
             group_name = claims[
                 "cognito:groups"
             ]  # Assume user is in only one group
+        else:
+            group_name = "Admin"
 
         # Extract request body
         request_body = json.loads(event["body"])
