@@ -332,6 +332,10 @@
     "successed":"Successed",
     "total":"Total",
     "sagemakerEndpoint": "SageMaker Endpoint",
-    "sagemakerEndpointDesc": "Please select sagemaker endpoint name"
+    "sagemakerEndpointDesc": "Please select sagemaker endpoint name",
+    "guardrailIdentifier": "Guardrail Identifier",
+    "guardrailVersion": "Guardrail Version",
+    "guardrailIdentifierDesc": "Enter guardrail identifier configured in the Bedrock console.",
+    "guardrailVersionDesc": "Enter guardrail version configured in the Bedrock console."
 }
 

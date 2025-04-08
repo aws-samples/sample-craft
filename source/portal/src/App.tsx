@@ -22,12 +22,7 @@ const AppBody = () => {
 
 const App: React.FC = () => {
   const hasToken = hasPrefixKeyInLocalStorage(OIDC_PREFIX)
-  // TOKEN is not exsist or is expired
-  // if((!hasToken && ![ROUTES.Login, ROUTES.ChangePWD, ROUTES.FindPWD, ROUTES.Register].includes(window.location.pathname))
-  //   || isTokenExpired()){
-  //   window.location.href=ROUTES.Login;
-  //   return null;
-  // }
+  console.log('@@@@hasToken', hasToken)
   if(window.location.pathname !== ROUTES.Login){
   if (hasToken){
     if(isTokenExpired()){

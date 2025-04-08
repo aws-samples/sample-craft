@@ -329,5 +329,9 @@
     "successed":"成功",
     "total":"共",
     "sagemakerEndpoint": "SageMaker端点",
-    "sagemakerEndpointDesc": "请选择SageMaker端点名称"
+    "sagemakerEndpointDesc": "请选择SageMaker端点名称",
+    "guardrailIdentifier": "Guardrail Identifier",
+    "guardrailVersion": "Guardrail Version",
+    "guardrailIdentifierDesc": "请输入Bedrock控制台配置的Guardrail Identifier",
+    "guardrailVersionDesc": "请输入Bedrock控制台配置的Guardrail Version"
 }
