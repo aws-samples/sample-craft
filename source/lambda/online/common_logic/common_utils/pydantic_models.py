@@ -89,14 +89,14 @@ class QueryProcessConfig(ForbidBaseModel):
 
 
 class HybridSearchConfig(AllowBaseModel):
-    bm25_search_context_extend_method: ContextExtendMethod = ContextExtendMethod.WHOLE_DOC
+    bm25_search_context_extend_method: ContextExtendMethod = ContextExtendMethod.NEIGHBOR
     bm25_search_whole_doc_max_size: int = 100
     bm25_search_chunk_window_size: int = 10
     bm25_search_top_k: int = 5
     bm25_search_threshold:float = Threshold.BM25_SEARCH_THRESHOLD
     enable_bm25_search: bool = True
 
-    vector_search_context_extend_method: ContextExtendMethod = ContextExtendMethod.WHOLE_DOC
+    vector_search_context_extend_method: ContextExtendMethod = ContextExtendMethod.NEIGHBOR
     vector_search_chunk_window_size: int = 10
     vector_search_top_k:int = 5 
     vector_search_whole_doc_max_size:int = 100

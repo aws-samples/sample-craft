@@ -87,21 +87,41 @@ def filter_response(res: Iterable, state: dict):
 
 
 
-def format_retrieved_context(retrieved_context:Document)->List[str]:
-    """
-    Format the retrieved contexts into a list of dictionaries
-    Args:
-        retrieved_contexts: List of retrieved contexts
-    Returns:
-        List of dictionaries containing the formatted contexts
-    """
-    extend_chunks:List[Document] = retrieved_context.metadata.get("extend_chunks", [])
-    page_content = retrieved_context.page_content
-    extend_page_content = "\n".join([chunk.page_content for chunk in extend_chunks])
-    if page_content in extend_page_content:
-        return extend_page_content
-    else:
-        return extend_page_content + "\n" + page_content
+# def format_retrieved_context(retrieved_context:Document,chunk_id_field)->List[str]:
+#     """
+#     Format the retrieved contexts into a list of dictionaries
+#     Args:
+#         retrieved_contexts: List of retrieved contexts
+#     Returns:
+#         List of dictionaries containing the formatted contexts
+#     """
+#     extend_chunks:List[Document] = retrieved_context.metadata.get("extend_chunks", [])
+#     page_content = retrieved_context.page_content
+
+#     extend_page_content = "\n".join([chunk.page_content for chunk in extend_chunks])
+#     if page_content in extend_page_content:
+#         return extend_page_content
+#     else:
+#         return extend_page_content + "\n" + page_content
+
+
+
+def format_retrieved_contexts(
+        retrieved_contexts:List[Document],
+        chunk_id_field:str
+    )->List[str]:
+    all_chunks = []
+    chunk_ids_set = set()
+    for doc in retrieved_contexts:
+        extend_chunks:List[Document] = doc.metadata.get("extend_chunks", [])
+        extend_chunks = extend_chunks + [doc]
+        for chunk in extend_chunks:
+            if chunk.metadata[chunk_id_field] not in chunk_ids_set:
+                all_chunks.append(chunk)
+                chunk_ids_set.add(chunk.metadata[chunk_id_field])
+    
+    all_chunks = sorted(all_chunks, key=lambda x: x.metadata[chunk_id_field])
+    return all_chunks, [chunk.page_content for chunk in all_chunks]
 
 
 def rag_tool(retriever_config: dict, query=None):
@@ -109,7 +129,7 @@ def rag_tool(retriever_config: dict, query=None):
     context_list = []
     # Add QQ match results
     context_list.extend(state['qq_match_results'])
-    figure_list = []
+    # figure_list = []
     retriever_params = retriever_config
     retriever_params["query"] = query or state[retriever_config.get(
         "query_key", "query")]
@@ -144,14 +164,24 @@ def rag_tool(retriever_config: dict, query=None):
     # final_docs = []
 
     # state["extra_response"]["docs"] = final_docs
+    chunk_id_field = qd_retrievers[0].database.chunk_id_field
 
-    for doc in retrieved_contexts:
-        formated_context = format_retrieved_context(doc)
-        # final_docs.append(formated_context)
-        context_list.append(formated_context)
-        # context_list.append(doc["page_content"])
-        figure_list = figure_list + doc.metadata.get("figure", [])
+    # for doc in retrieved_contexts:
+    #     # formated_context = format_retrieved_context(
+    #     #     doc,
+    #     #     chunk_id_field=chunk_id_field
+    #     # )
+    #     # # final_docs.append(formated_context)
+    #     # context_list.append(formated_context)
+    #     # context_list.append(doc["page_content"])
+    #     figure_list = figure_list + doc.metadata.get("figure", [])
     
+    # retriver result format 
+    retrieved_contexts,context_list = format_retrieved_contexts(
+        retrieved_contexts,
+        chunk_id_field=chunk_id_field 
+    )
+
     state["extra_response"]["docs"] = retrieved_contexts
 
     context_md = format_rag_data(
