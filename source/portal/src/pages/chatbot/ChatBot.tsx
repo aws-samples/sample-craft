@@ -827,6 +827,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           },
           guardrail_config: {
             guardrailIdentifier: guardrailIdentifier.trim(),
+            guardrailVersion: guardrailVersion.trim()
           }
         },
         default_retriever_config: {
