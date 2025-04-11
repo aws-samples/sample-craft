@@ -2,7 +2,7 @@ import axios from 'axios';
 import { useContext } from 'react';
 import ConfigContext, { Config } from 'src/context/config-context';
 import { OIDC_PROVIDER, OIDC_STORAGE } from 'src/utils/const';
-import { alertMsg, getCredentials } from 'src/utils/utils';
+import { alertMsg, getCredentials, isTokenExpired } from 'src/utils/utils';
 
 
 const useAxiosRequest = () => {
@@ -23,6 +23,10 @@ const useAxiosRequest = () => {
     params?: any;
   }) => {
     try {
+      if(isTokenExpired()){
+          window.location.href = '/login'
+          return null
+      }
       const response = await axios({
         method: method,
         url: `${config?.apiUrl}${url}`,

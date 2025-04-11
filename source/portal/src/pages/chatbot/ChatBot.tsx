@@ -3,7 +3,7 @@ import CommonLayout from 'src/layout/CommonLayout';
 import Message from './components/Message';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useTranslation } from 'react-i18next';
-import { decodeJwt } from "jose";
+import { decodeJwt } from 'jose';
 import {
   Autosuggest,
   Box,
@@ -21,7 +21,7 @@ import {
   Spinner,
   StatusIndicator,
   Textarea,
-  Toggle
+  Toggle,
 } from '@cloudscape-design/components';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { identity } from 'lodash';
@@ -53,11 +53,14 @@ import {
   ROUTES,
   SILICON_FLOW_API_MODEL_LIST,
   OIDC_STORAGE,
-  SAGEMAKER_MODEL_LIST
+  SAGEMAKER_MODEL_LIST,
+  GUARDRAIL_IDENTIFIER,
+  GUARDRAIL_VERSION,
+  MODE,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageDataType, SessionMessage } from 'src/types';
-import { getCredentials, isValidJson } from 'src/utils/utils';
+import { getCredentials, isTokenExpired, isValidJson } from 'src/utils/utils';
 
 interface MessageType {
   messageId: string;
@@ -72,6 +75,27 @@ interface MessageType {
 interface ChatBotProps {
   historySessionId?: string;
 }
+
+const defaultConfig = {
+  modelType: {
+    label: 'Bedrock',
+    value: 'Bedrock',
+  },
+  model: LLM_BOT_COMMON_MODEL_LIST[0].options[0].value,
+  temperature: '0.01',
+  maxToken: '1000',
+  maxRounds: '7',
+  topKKeyword: '5',
+  topKEmbedding: '5',
+  topKRerank: '10',
+  keywordScore: '0.4',
+  embeddingScore: '0.4',
+  additionalConfig: '',
+  apiEndpoint: '',
+  apiKeyArn: '',
+  guardrailIdentifier: '',
+  guardrailVersion: ''
+};
 
 const isValidUrl = (url: string): boolean => {
   try {
@@ -110,6 +134,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const localEmbeddingScore = localStorage.getItem(EMBEDDING_SCORE);
   const localApiEndpoint = localStorage.getItem(API_ENDPOINT);
   const localApiKeyArn = localStorage.getItem(API_KEY_ARN);
+  const localGuardrailIdentifier = localStorage.getItem(GUARDRAIL_IDENTIFIER);
+  const localGuardrailVersion = localStorage.getItem(GUARDRAIL_VERSION);
   const config = useContext(ConfigContext);
   const isFirstRender = useRef(true);
   const { t } = useTranslation();
@@ -129,6 +155,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  if(isTokenExpired()){
+    window.location.href = '/login'
+    return null
+  }
   let wsUrl = `${config?.websocket}?idToken=${getCredentials().idToken}&provider=${oidc.provider}&clientId=${config?.oidcClientId}&poolId=${config?.oidcPoolId}`;
   if (oidc.provider === 'authing') {
     wsUrl = `${config?.websocket}?idToken=${getCredentials().access_token}&provider=${oidc.provider}&clientId=${oidc.clientId}&redirectUri=${oidc.redirectUri}`;
@@ -141,13 +171,15 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [currentMonitorMessage, setCurrentMonitorMessage] = useState('');
   const [currentAIMessageId, setCurrentAIMessageId] = useState('');
   const [aiSpeaking, setAiSpeaking] = useState(false);
-  
+
   const [modelList, setModelList] = useState<SelectProps.Option[]>([]);
   const [chatbotList, setChatbotList] = useState<SelectProps.Option[]>([]);
+  const [mode, setMode] =useState(localStorage.getItem(MODE) || 'normal')
   
-  const [chatbotOption, setChatbotOption] = useState<SelectProps.Option>(
-    {label: 'admin', value: 'admin'} as any,
-  );
+  const [chatbotOption, setChatbotOption] = useState<SelectProps.Option>({
+    label: 'admin',
+    value: 'admin',
+  } as any);
   const [useChatHistory, setUseChatHistory] = useState(
     localStorage.getItem(USE_CHAT_HISTORY) == null ||
       localStorage.getItem(USE_CHAT_HISTORY) == 'true'
@@ -168,41 +200,29 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       : false,
   );
   const [isComposing, setIsComposing] = useState(false);
-  
-  const defaultConfig = {
-    modelType: {
-      label: 'Bedrock',
-      value: 'Bedrock',
-    },
-    model: LLM_BOT_COMMON_MODEL_LIST[0].options[0].value,
-    temperature: '0.01',
-    maxToken: '1000',
-    maxRounds: '7',
-    topKKeyword: '5',
-    topKEmbedding: '5',
-    topKRerank: '10',
-    keywordScore: '0.4',
-    embeddingScore: '0.4',           
-    additionalConfig: '',
-    apiEndpoint: '',
-    apiKeyArn: '',
-  };
 
   const [sessionId, setSessionId] = useState(historySessionId);
 
-  const [modelOption, setModelOption] = useState(localModel ?? defaultConfig.model);
+  const [modelOption, setModelOption] = useState(
+    localModel ?? defaultConfig.model,
+  );
   // if (localModelType.value === 'SageMaker'){
-  const [sageMakerEndpointOption, setSageMakerEndpointOption] = useState<SelectProps.Option>(null as any);
-  
-    // if (localModelType.value === 'SageMaker'){
+  const [sageMakerEndpointOption, setSageMakerEndpointOption] =
+    useState<SelectProps.Option>(null as any);
 
-    // }
+  // if (localModelType.value === 'SageMaker'){
+
+  // }
   // }
   const [modelType, setModelType] = useState<SelectProps.Option>(
     localModelType ?? defaultConfig.modelType,
   );
-  const [apiEndpoint, setApiEndpoint] = useState(localApiEndpoint ?? defaultConfig.apiEndpoint);
-  const [apiKeyArn, setApiKeyArn] = useState(localApiKeyArn ?? defaultConfig.apiKeyArn);
+  const [apiEndpoint, setApiEndpoint] = useState(
+    localApiEndpoint ?? defaultConfig.apiEndpoint,
+  );
+  const [apiKeyArn, setApiKeyArn] = useState(
+    localApiKeyArn ?? defaultConfig.apiKeyArn,
+  );
 
   const [temperature, setTemperature] = useState<string>(
     localTemperature ?? defaultConfig.temperature,
@@ -231,6 +251,13 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [additionalConfig, setAdditionalConfig] = useState(
     localConfig ?? defaultConfig.additionalConfig,
   );
+  const [guardrailIdentifier, setGuardrailIdentifier] = useState<string>(
+    localGuardrailIdentifier ?? defaultConfig.guardrailIdentifier,
+  );
+  const [guardrailVersion, setGuardrailVersion] = useState<string>(
+    localGuardrailVersion ?? defaultConfig.guardrailVersion,
+  );
+
   const [topKKeywordError, setTopKKeywordError] = useState('');
   const [topKEmbeddingError, setTopKEmbeddingError] = useState('');
   const [topKRerankError, setTopKRerankError] = useState('');
@@ -250,8 +277,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [additionalConfigError, setAdditionalConfigError] = useState('');
   const [apiEndpointError, setApiEndpointError] = useState('');
   const [apiKeyArnError, setApiKeyArnError] = useState('');
- 
-  const [sageMakerEndpoints, setSageMakerEndpoints] = useState<{label: string, value: string}[]>([])
+
+  const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
+    { label: string; value: string }[]
+  >([]);
 
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'loading',
@@ -401,7 +430,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   };
   useEffect(() => {
     const initializeChatbot = async () => {
-      setLoadingChatBots(true)
+      setLoadingChatBots(true);
       if (historySessionId) {
         // Wait for getSessionHistoryById to complete to set history chatbotId
         await getSessionHistoryById();
@@ -412,11 +441,11 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       getWorkspaceList();
     };
 
-    const fetchEndpoints = async () =>{
+    const fetchEndpoints = async () => {
       const tempModels: { label: string; value: string }[] = [];
       const data = await fetchData({
         url: 'model-management/endpoints',
-        method: 'get'
+        method: 'get',
       });
       data.endpoints.forEach((endpoint: any) => {
         tempModels.push({
@@ -424,16 +453,16 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           value: endpoint.endpoint_name,
         });
       });
-      setSageMakerEndpoints(tempModels)
-      setSageMakerEndpointOption(tempModels[0])
-      if(modelType.value === "SageMaker"){
-        setApiEndpoint(localApiEndpoint ?? tempModels[0].value)
-     }
-    }
+      setSageMakerEndpoints(tempModels);
+      setSageMakerEndpointOption(tempModels[0]);
+      if (modelType.value === 'SageMaker') {
+        setApiEndpoint(localApiEndpoint ?? tempModels[0].value);
+      }
+    };
     fetchEndpoints();
     initializeChatbot();
     setLoadingChatBots(false);
-    setModelList(LLM_BOT_COMMON_MODEL_LIST)
+    setModelList(LLM_BOT_COMMON_MODEL_LIST);
   }, []);
 
   useEffect(() => {
@@ -536,6 +565,18 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       localStorage.setItem(API_KEY_ARN, apiKeyArn);
     }
   }, [apiKeyArn]);
+
+  useEffect(() => {
+    if (guardrailIdentifier) {
+      localStorage.setItem(GUARDRAIL_IDENTIFIER, guardrailIdentifier);
+    }
+  }, [guardrailIdentifier]);
+
+  useEffect(() => {
+    if (guardrailVersion) {
+      localStorage.setItem(GUARDRAIL_VERSION, guardrailVersion);
+    }
+  }, [guardrailVersion]);
 
   const handleAIMessage = (message: MessageDataType) => {
     // console.info('handleAIMessage:', message);
@@ -646,7 +687,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         return;
       }
     } else {
-      if(modelType.value === 'SageMaker' && !apiEndpoint.trim()){
+      if (modelType.value === 'SageMaker' && !apiEndpoint.trim()) {
         setApiEndpointError(t('validation.requireSagemakerEndpoint'));
         setModelSettingExpand(true);
         return;
@@ -748,11 +789,11 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     setIsMessageEnd(false);
 
     const groupName: any = getGroupName();
-    let message = {
+    let message: any = {
       query: messageToSend,
       entry_type: 'common',
       session_id: sessionId,
-      user_id: oidc["username"] || 'default_user_id',
+      user_id: oidc['username'] || 'default_user_id',
       chatbot_config: {
         max_rounds_in_memory: parseInt(maxRounds),
         group_name: groupName?.[0] ?? 'Admin',
@@ -765,25 +806,31 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         default_llm_config: {
           model_id: modelOption,
           endpoint_name:
-            modelOption === 'qwen2-72B-instruct' ? endPoint.trim() : apiEndpoint,
+            modelOption === 'qwen2-72B-instruct'
+              ? endPoint.trim()
+              : apiEndpoint,
           provider: modelType.value,
           base_url:
             modelType.value === 'Bedrock API' ||
-              modelType.value === 'OpenAI API' ||
-              modelType.value === 'siliconflow' ||
-              modelType.value === 'SageMaker'
+            modelType.value === 'OpenAI API' ||
+            modelType.value === 'siliconflow' ||
+            modelType.value === 'SageMaker'
               ? apiEndpoint.trim()
               : '',
           api_key_arn:
             modelType.value === 'Bedrock API' ||
-              modelType.value === 'OpenAI API' ||
-              modelType.value === 'siliconflow'
+            modelType.value === 'OpenAI API' ||
+            modelType.value === 'siliconflow'
               ? apiKeyArn.trim()
               : '',
           model_kwargs: {
             temperature: parseFloat(temperature),
             max_tokens: parseInt(maxToken),
           },
+          // guardrail_config: {
+          //   guardrailIdentifier: guardrailIdentifier.trim()===""?null:guardrailIdentifier.trim(),
+          //   guardrailVersion: guardrailVersion.trim()===""?null:guardrailVersion.trim()
+          // }
         },
         default_retriever_config: {
           private_knowledge: {
@@ -791,14 +838,24 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             bm25_search_score: parseFloat(keywordScore),
             vector_search_top_k: parseInt(topKEmbedding),
             vector_search_score: parseFloat(embeddingScore),
-            rerank_top_k: parseInt(topKRerank)
-          }
+            rerank_top_k: parseInt(topKRerank),
+          },
         },
         agent_config: {
           only_use_rag_tool: onlyRAGTool,
         },
       },
     };
+
+    const guardrailIdentifierTrim = guardrailIdentifier.trim()
+    const guardrailVersionTrim = guardrailVersion.trim()
+
+    if (!( guardrailIdentifierTrim=== "" && guardrailVersionTrim === "")) {
+      message.chatbot_config.default_llm_config.guardrail_config = {
+        guardrailIdentifier: guardrailIdentifierTrim === "" ? null : guardrailIdentifierTrim,
+        guardrailVersion: guardrailVersionTrim === "" ? null : guardrailVersionTrim
+      };
+    }
 
     // add additional config
     if (additionalConfig.trim()) {
@@ -835,16 +892,42 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
 
+  const useLocalStorageValue = (key: string) => {
+    const [value, setValue] = useState(() => localStorage.getItem(key));
+  
+    useEffect(() => {
+      const interval = setInterval(() => {
+        const currentValue = localStorage.getItem(key);
+        setValue((prev) => (prev !== currentValue ? currentValue : prev));
+      }, 100); // 监听间隔可以按需调整
+  
+      return () => clearInterval(interval);
+    }, [key]);
+  
+    return value;
+  }
+
+  const local_mode = useLocalStorageValue(MODE);
+  useEffect(() => {
+    if (local_mode) {
+      setMode(local_mode)
+    }
+  }, [local_mode]);
+
   useEffect(() => {
     if (isFirstRender.current) {
-      isFirstRender.current = false; 
+      isFirstRender.current = false;
       return;
     }
-    setApiEndpoint(modelType.value === 'SageMaker' ? sageMakerEndpoints[0].value:'');
+    setApiEndpoint(
+      modelType.value === 'SageMaker' ? sageMakerEndpoints[0].value : '',
+    );
     setApiKeyArn('');
     if (modelType.value === 'Bedrock') {
       setModelList(LLM_BOT_COMMON_MODEL_LIST);
       setModelOption(LLM_BOT_COMMON_MODEL_LIST[0].options[0].value);
+      setGuardrailIdentifier('');
+      setGuardrailVersion('');
     } else if (modelType.value === 'Bedrock API') {
       setModelList(BR_API_MODEL_LIST);
       setModelOption(BR_API_MODEL_LIST[0].options[0].value);
@@ -865,7 +948,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       setShowEndpoint(true);
     } else {
       setEndPoint('Qwen2-72B-Instruct-AWQ-2024-06-25-02-15-34-347');
-    } 
+    }
   }, [modelType]);
 
   useEffect(() => {
@@ -881,14 +964,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     [key: string]: 'thumb_up' | 'thumb_down' | null;
   }>({});
 
-  const getGroupName = () =>{
-    if(oidc.provider === "cognito") {
-       const credentials = getCredentials()
+  const getGroupName = () => {
+    if (oidc.provider === 'cognito') {
+      const credentials = getCredentials();
       const claim = decodeJwt(credentials.idToken);
-      return claim["cognito:groups"]
+      return claim['cognito:groups'];
     }
-    return ["Admin"]
-  }
+    return ['Admin'];
+  };
 
   const handleThumbUpClick = async (index: number) => {
     const currentFeedback = feedbackGiven[index];
@@ -947,7 +1030,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     const message = {
       message_type: 'STOP',
       session_id: sessionId,
-      user_id: oidc["username"] || 'default_user_id',
+      user_id: oidc['username'] || 'default_user_id',
     };
 
     console.info('Send stop message:', message);
@@ -966,12 +1049,21 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
     return (
       <>
-        <SpaceBetween direction='horizontal' size='xxs'>
+        <SpaceBetween direction="horizontal" size="xxs">
           <div
-            style={{ border: '2px solid #0972d3', borderRadius: 20, padding: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}
+            style={{
+              border: '2px solid #0972d3',
+              borderRadius: 20,
+              padding: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 20,
+              height: 20,
+            }}
             onClick={() => fileInputRef.current?.click()}
           >
-            <img src={"/imgs/img-upload.png"} alt="attach" width={15}></img>
+            <img src={'/imgs/img-upload.png'} alt="attach" width={15}></img>
           </div>
           <input
             type="file"
@@ -987,7 +1079,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             ariaLabel={t('button.send')}
           >
             {t('button.send')}
-          </Button></SpaceBetween>
+          </Button>
+        </SpaceBetween>
       </>
     );
   };
@@ -1078,11 +1171,19 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             </Header>
           }
         >
-          {loadingChatBots ? (<Container
-            fitHeight={true}>
-            <div style={{ margin: "auto", textAlign: "center", marginTop: "30%" }}>
-              <Spinner size="large" /></div>
-          </Container>) : (
+          {loadingChatBots ? (
+            <Container fitHeight={true}>
+              <div
+                style={{
+                  margin: 'auto',
+                  textAlign: 'center',
+                  marginTop: '30%',
+                }}
+              >
+                <Spinner size="large" />
+              </div>
+            </Container>
+          ) : (
             <Container
               fitHeight={true}
               footer={
@@ -1124,8 +1225,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           />
                         </FormField>
                         {modelType.value === 'Bedrock API' ||
-                          modelType.value === 'OpenAI API' ||
-                          modelType.value === 'siliconflow' ? (
+                        modelType.value === 'OpenAI API' ||
+                        modelType.value === 'siliconflow' ? (
                           <SpaceBetween size="xs" direction="vertical">
                             <FormField
                               label={t('modelName')}
@@ -1190,73 +1291,113 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                               />
                             </FormField>
                           </SpaceBetween>
-                        ) : (<>
-                          
-                          {modelType.value === 'SageMaker' ? (
-                             <SpaceBetween size="xs" direction="vertical">
-                            <FormField
-                            label={t('modelName')}
-                            stretch={true}
-                            errorText={t(modelError)}
-                            description={t('modelNameDesc')}
-                          >
-                            <Autosuggest
-                              onChange={({ detail }) => {
-                                setModelError('');
-                                setModelOption(detail.value);
-                              }}
-                              value={modelOption}
-                              options={modelList}
-                              placeholder={t('validation.requireModel')}
-                              empty={t('noModelFound')}
-                              enteredTextLabel={(value) => `Use: "${value}"`}
-                            />
-                          </FormField>
-                            <FormField
-                            label={t('sagemakerEndpoint')}
-                            stretch={true}
-                            errorText={t(apiEndpointError)}
-                            description={t('sagemakerEndpointDesc')}
-                          >
-                            <Select
-
-                    onChange={({ detail }: { detail: any }) => {
-                      setApiEndpointError('');
-                      setApiEndpoint(detail.selectedOption.value);
-                      setSageMakerEndpointOption(detail.selectedOption);
-                    }}
-                    loadingText={t('loadingEp')}
-                    selectedOption={sageMakerEndpointOption}
-                    options={sageMakerEndpoints}
-                    placeholder={t('validation.requireModel')}
-                    empty={t('noModelFound')}
-                  />
-                          </FormField></SpaceBetween>
-                          ):(
-                            <FormField
-                            label={t('modelName')}
-                            stretch={true}
-                            errorText={t(modelError)}
-                            description={t('modelNameDesc')}
-                          >
-                            <Autosuggest
-                              onChange={({ detail }) => {
-                                setModelError('');
-                                setModelOption(detail.value);
-                              }}
-                              value={modelOption}
-                              options={modelList}
-                              placeholder={t('validation.requireModel')}
-                              empty={t('noModelFound')}
-                              enteredTextLabel={(value) => `Use: "${value}"`}
-                            />
-                          </FormField>
-                          )
-
-
-                          }</>
+                        ) : (
+                          <>
+                            {modelType.value === 'SageMaker' ? (
+                              <SpaceBetween size="xs" direction="vertical">
+                                <FormField
+                                  label={t('modelName')}
+                                  stretch={true}
+                                  errorText={t(modelError)}
+                                  description={t('modelNameDesc')}
+                                >
+                                  <Autosuggest
+                                    onChange={({ detail }) => {
+                                      setModelError('');
+                                      setModelOption(detail.value);
+                                    }}
+                                    value={modelOption}
+                                    options={modelList}
+                                    placeholder={t('validation.requireModel')}
+                                    empty={t('noModelFound')}
+                                    enteredTextLabel={(value) =>
+                                      `Use: "${value}"`
+                                    }
+                                  />
+                                </FormField>
+                                <FormField
+                                  label={t('sagemakerEndpoint')}
+                                  stretch={true}
+                                  errorText={t(apiEndpointError)}
+                                  description={t('sagemakerEndpointDesc')}
+                                >
+                                  <Select
+                                    onChange={({ detail }: { detail: any }) => {
+                                      setApiEndpointError('');
+                                      setApiEndpoint(
+                                        detail.selectedOption.value,
+                                      );
+                                      setSageMakerEndpointOption(
+                                        detail.selectedOption,
+                                      );
+                                    }}
+                                    loadingText={t('loadingEp')}
+                                    selectedOption={sageMakerEndpointOption}
+                                    options={sageMakerEndpoints}
+                                    placeholder={t('validation.requireModel')}
+                                    empty={t('noModelFound')}
+                                  />
+                                </FormField>
+                              </SpaceBetween>
+                            ) : (
+                              <FormField
+                                label={t('modelName')}
+                                stretch={true}
+                                errorText={t(modelError)}
+                                description={t('modelNameDesc')}
+                              >
+                                <Autosuggest
+                                  onChange={({ detail }) => {
+                                    setModelError('');
+                                    setModelOption(detail.value);
+                                  }}
+                                  value={modelOption}
+                                  options={modelList}
+                                  placeholder={t('validation.requireModel')}
+                                  empty={t('noModelFound')}
+                                  enteredTextLabel={(value) =>
+                                    `Use: "${value}"`
+                                  }
+                                />
+                              </FormField>
+                            )}
+                          </>
                         )}
                       </Grid>
+                      {modelType.value === 'Bedrock' && (
+                        <Grid gridDefinition={[{ colspan: 5 }, { colspan: 6 }]}>
+                          <FormField
+                            description={t('guardrailIdentifierDesc')}
+                            label={
+                              <span>
+                                {t('guardrailIdentifier')} <i>- {t('optional')}</i>{' '}
+                              </span>
+                            }
+                          >
+                            <Input
+                              value={guardrailIdentifier}
+                              onChange={(event) =>
+                                setGuardrailIdentifier(event.detail.value)
+                              }
+                            />
+                          </FormField>
+                          <FormField
+                            description={t('guardrailVersionDesc')}
+                            label={
+                              <span>
+                                {t('guardrailVersion')} <i>- {t('optional')}</i>{' '}
+                              </span>
+                            }
+                          >
+                            <Input
+                              value={guardrailVersion}
+                              onChange={(event) =>
+                                setGuardrailVersion(event.detail.value)
+                              }
+                            />
+                          </FormField>
+                        </Grid>
+                      )}
                       <Grid gridDefinition={[{ colspan: 5 }, { colspan: 6 }]}>
                         <FormField
                           label={t('maxTokens')}
@@ -1333,7 +1474,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           stretch={true}
                           description={t('recallByKeywordDesc')}
                         >
-                          <Grid gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}>
+                          <Grid
+                            gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}
+                          >
                             <FormField
                               stretch={true}
                               description={t('topK')}
@@ -1382,7 +1525,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           stretch={true}
                           description={t('recallByEmbeddingDesc')}
                         >
-                          <Grid gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}>
+                          <Grid
+                            gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}
+                          >
                             <FormField
                               stretch={true}
                               description={t('topK')}
@@ -1555,7 +1700,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           />
                         </FormField>
                       </Grid>
-                      <FormField
+                      {mode === "debug" && (
+                        <FormField
                         label={t('additionalSettings')}
                         errorText={t(additionalConfigError)}
                       >
@@ -1576,6 +1722,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           )}
                         />
                       </FormField>
+                      )}          
                     </SpaceBetween>
                   </ExpandableSection>
                 </div>
@@ -1676,7 +1823,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                                 : 'thumbs-down'
                             }
                             variant="icon"
-                            onClick={() => handleThumbDownClick(messages.length)}
+                            onClick={() =>
+                              handleThumbDownClick(messages.length)
+                            }
                             ariaLabel={t('feedback.notHelpful')}
                           />
                         </div>
@@ -1792,7 +1941,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
               </div>
             </Container>
           )}
-
         </ContentLayout>
       </div>
     </CommonLayout>

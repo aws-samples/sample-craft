@@ -420,6 +420,9 @@ export const HISTORY_CHATBOT_ID = 'history_chatbot_id';
 export const API_ENDPOINT = 'api_endpoint';
 export const API_KEY_ARN = 'api_key_arn';
 export const SHOW_FIGURES = 'show_figures';
+export const GUARDRAIL_IDENTIFIER = 'guardrail_identifier';
+export const GUARDRAIL_VERSION = 'guardrail_version';
+export const MODE = 'mode';
 
 // export const ZH_LANGUAGE_LIST = ['zh', 'zh-cn', 'zh_CN', 'zh-CN'];
 export const EN_LANGUAGE_LIST = ['en', 'en-US', 'en_UK'];
