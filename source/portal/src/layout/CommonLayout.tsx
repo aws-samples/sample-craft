@@ -29,6 +29,7 @@ import {
   OIDC_STORAGE,
   OIDC_PREFIX,
   OIDC_PROVIDER,
+  MODE,
 } from 'src/utils/const';
 import ConfigContext from 'src/context/config-context';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -68,6 +69,7 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   const [fullLogoutUrl, setFullLogoutUrl] = useState('');
   const config = useContext(ConfigContext);
   const navigate = useNavigate();
+  const [mode ,setMode]= useState(localStorage.getItem(MODE) || 'normal')
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
@@ -78,6 +80,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
       localStorage.removeItem(key);
     });
   };
+
+  useEffect(()=>{
+      localStorage.setItem(MODE, mode)
+  },[mode])
 
   useEffect(() => {
     let idToken = ""
@@ -162,14 +168,17 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
         identity={{
           href: ROUTES.Home,
           title: t('name'),
-        }}
+        }}    
         utilities={[
           {
             type: "button",
             iconName: "bug",
             title: "Debug",
+            onClick: ()=>{
+              setMode(mode === 'normal' ? 'debug' : 'normal')
+            },
             ariaLabel: "Notifications (unread)",
-            badge: false,
+            badge: mode === 'debug',
             disableUtilityCollapse: false
           },
           {

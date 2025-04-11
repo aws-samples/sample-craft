@@ -56,6 +56,7 @@ import {
   SAGEMAKER_MODEL_LIST,
   GUARDRAIL_IDENTIFIER,
   GUARDRAIL_VERSION,
+  MODE,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageDataType, SessionMessage } from 'src/types';
@@ -173,6 +174,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
   const [modelList, setModelList] = useState<SelectProps.Option[]>([]);
   const [chatbotList, setChatbotList] = useState<SelectProps.Option[]>([]);
+  const [mode, setMode] =useState(localStorage.getItem(MODE) || 'normal')
   
   const [chatbotOption, setChatbotOption] = useState<SelectProps.Option>({
     label: 'admin',
@@ -787,7 +789,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     setIsMessageEnd(false);
 
     const groupName: any = getGroupName();
-    let message = {
+    let message: any = {
       query: messageToSend,
       entry_type: 'common',
       session_id: sessionId,
@@ -825,10 +827,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             temperature: parseFloat(temperature),
             max_tokens: parseInt(maxToken),
           },
-          guardrail_config: {
-            guardrailIdentifier: guardrailIdentifier.trim(),
-            guardrailVersion: guardrailVersion.trim()
-          }
+          // guardrail_config: {
+          //   guardrailIdentifier: guardrailIdentifier.trim()===""?null:guardrailIdentifier.trim(),
+          //   guardrailVersion: guardrailVersion.trim()===""?null:guardrailVersion.trim()
+          // }
         },
         default_retriever_config: {
           private_knowledge: {
@@ -844,6 +846,16 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         },
       },
     };
+
+    const guardrailIdentifierTrim = guardrailIdentifier.trim()
+    const guardrailVersionTrim = guardrailVersion.trim()
+
+    if (!( guardrailIdentifierTrim=== "" && guardrailVersionTrim === "")) {
+      message.chatbot_config.default_llm_config.guardrail_config = {
+        guardrailIdentifier: guardrailIdentifierTrim === "" ? null : guardrailIdentifierTrim,
+        guardrailVersion: guardrailVersionTrim === "" ? null : guardrailVersionTrim
+      };
+    }
 
     // add additional config
     if (additionalConfig.trim()) {
@@ -879,6 +891,28 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       setSelectedFiles([]);
     }
   };
+
+  const useLocalStorageValue = (key: string) => {
+    const [value, setValue] = useState(() => localStorage.getItem(key));
+  
+    useEffect(() => {
+      const interval = setInterval(() => {
+        const currentValue = localStorage.getItem(key);
+        setValue((prev) => (prev !== currentValue ? currentValue : prev));
+      }, 100); // 监听间隔可以按需调整
+  
+      return () => clearInterval(interval);
+    }, [key]);
+  
+    return value;
+  }
+
+  const local_mode = useLocalStorageValue(MODE);
+  useEffect(() => {
+    if (local_mode) {
+      setMode(local_mode)
+    }
+  }, [local_mode]);
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -1666,7 +1700,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           />
                         </FormField>
                       </Grid>
-                      <FormField
+                      {mode === "debug" && (
+                        <FormField
                         label={t('additionalSettings')}
                         errorText={t(additionalConfigError)}
                       >
@@ -1687,6 +1722,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           )}
                         />
                       </FormField>
+                      )}          
                     </SpaceBetween>
                   </ExpandableSection>
                 </div>
