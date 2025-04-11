@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import {
   EN_LANG,
   LOGIN_TYPE,
+  MODE,
   OIDC_STORAGE,
   ROUTES,
   ZH_LANG,
@@ -147,30 +148,6 @@ const Login: FC = () => {
           // tmp_login_params.set(item.name, item)
         });
       } else {
-        config.login.oidc.providers.forEach((item: any) => {
-          let description = '';
-          switch (item.name) {
-            case 'keycloak':
-              description = t('auth:keycloakDesc');
-              break;
-            case 'authing':
-              description = t('auth:authingDesc');
-              break;
-            default:
-              description = t('auth:cognitoDesc');
-              break;
-          }
-          oidcOptions.push({
-            label: item.label,
-            iconUrl: `imgs/${item.name}.png`,
-            value: item.name,
-            clientId: item.clientId,
-            clientSecret: item.clientSecret,
-            redirectUri: item.redirectUri,
-            disabled: item.disabled || false,
-            tags: [description],
-          });
-        });
         oidcOptions.push({
         label: 'Cognito',
         iconUrl: 'imgs/cognito.png',
@@ -366,7 +343,7 @@ const Login: FC = () => {
       setLogging(false);
       return;
     }
-
+    localStorage.setItem(MODE, 'nomal')
     localStorage.setItem(
       OIDC_STORAGE,
       JSON.stringify({
