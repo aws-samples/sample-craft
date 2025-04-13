@@ -245,6 +245,7 @@
       "requireTopKRerank": "请输入用来重排序的TOP_K",
       "requireKeywordScore": "请输入关键词召回的阈值",
       "requireEmbeddingScore": "请输入向量召回的阈值",
+      "requireGuardrailVersion": "当Guardrail Identifier不为空时Guardrail Version为必填项",
       "temperatureRange": "发散度必须介于 0 和 1 之间",
       "maxTokensRange": "最大 token 数必须大于 0",
       "requirePrompt": "请输入提示词",
@@ -333,5 +334,6 @@
     "guardrailIdentifier": "Guardrail Identifier",
     "guardrailVersion": "Guardrail Version",
     "guardrailIdentifierDesc": "请输入Bedrock控制台配置的Guardrail Identifier",
-    "guardrailVersionDesc": "请输入Bedrock控制台配置的Guardrail Version"
+    "guardrailVersionDesc": "请输入Bedrock控制台配置的Guardrail Version",
+    "conditionalOption": "条件可选"
 }
