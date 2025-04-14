@@ -245,6 +245,7 @@
       "requireKeywordScore": "Please enter threshold value for keyword recall",
       "requireEmbeddingScore": "Please enter threshold value for embedding recall",
       "requireSagemakerEndpoint": "Please select an sagemaker endpoint",
+      "requireGuardrailVersion" : "Guardrail Version is required when Identifier is not empty",
       "temperatureRange": "The temperature must be between 0 and 1",
       "maxTokensRange": "The maximum number of tokens must lager than 0",
       "maxRoundsRange": "The maximum number of rounds must greater than or equal to 0",
@@ -336,6 +337,7 @@
     "guardrailIdentifier": "Guardrail Identifier",
     "guardrailVersion": "Guardrail Version",
     "guardrailIdentifierDesc": "Enter guardrail identifier configured in the Bedrock console.",
-    "guardrailVersionDesc": "Enter guardrail version configured in the Bedrock console."
+    "guardrailVersionDesc": "Enter guardrail version configured in the Bedrock console.",
+    "conditionalOption": "Conditional Option"
 }
 

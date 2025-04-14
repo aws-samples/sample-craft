@@ -169,8 +169,8 @@ def intention_detection(state: ChatbotState):
         OpensearchHybridQueryQuestionRetriever.from_config(
             **{
                 **retriver_config,
-                "rerank_config":None,
-                "enable_bm25_search":False
+                "rerank_config": None,
+                "enable_bm25_search": False
             }
         )
         for retriver_config in qq_match_config["retrievers"]
@@ -199,7 +199,7 @@ def intention_detection(state: ChatbotState):
                 state["enable_trace"],
             )
             query_content = doc.metadata["answer"]
-            
+
             return {
                 "answer": query_content,
                 "intent_type": "similar query found",
@@ -215,7 +215,7 @@ def intention_detection(state: ChatbotState):
                     metadata={**doc.metadata},
                 )
             )
-           
+
     if state["chatbot_config"]["agent_config"]["only_use_rag_tool"]:
         return {
             "qq_match_results": qq_match_results,
@@ -242,7 +242,6 @@ def intention_detection(state: ChatbotState):
     )
     all_knowledge_retrieved_list = []
     markdown_table = format_intention_output(intent_fewshot_examples)
-
 
     if not intent_fewshot_examples:
         logger.info("##### Intention QD")
@@ -699,7 +698,8 @@ def register_custom_lambda_tools_from_config(event_body):
                 )
             new_agent_config_tools.append(tool_name)
         else:
-            raise ValueError(f"tool type {type(tool)}: {tool} is not supported")
+            raise ValueError(
+                f"tool type {type(tool)}: {tool} is not supported")
 
     event_body["chatbot_config"]["agent_config"][
         "tools"
@@ -734,7 +734,7 @@ def common_entry(event_body):
     max_rounds_in_memory = event_body["chatbot_config"]["max_rounds_in_memory"]
     # if(len(event_body["chat_history"])<=2*max_rounds_in_memory)
     chat_history = (
-        event_body["chat_history"][-2 * max_rounds_in_memory :]
+        event_body["chat_history"][-2 * max_rounds_in_memory:]
         if use_history
         else []
     )

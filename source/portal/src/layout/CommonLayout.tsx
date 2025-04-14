@@ -170,17 +170,17 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
           title: t('name'),
         }}    
         utilities={[
-          {
-            type: "button",
-            iconName: "bug",
-            title: "Debug",
-            onClick: ()=>{
-              setMode(mode === 'normal' ? 'debug' : 'normal')
-            },
-            ariaLabel: "Notifications (unread)",
-            badge: mode === 'debug',
-            disableUtilityCollapse: false
-          },
+          // {
+          //   type: "button",
+          //   iconName: "bug",
+          //   title: "Debug",
+          //   onClick: ()=>{
+          //     setMode(mode === 'normal' ? 'debug' : 'normal')
+          //   },
+          //   ariaLabel: "Notifications (unread)",
+          //   badge: mode === 'debug',
+          //   disableUtilityCollapse: false
+          // },
           {
             type: 'menu-dropdown',
             text: ZH_LANGUAGE_LIST.includes(i18n.language) ? ZH_TEXT : EN_TEXT,
