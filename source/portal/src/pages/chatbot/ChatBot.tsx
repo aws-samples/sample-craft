@@ -141,6 +141,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const { t } = useTranslation();
   // const auth = useAuth();
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [guardrailVersionError, setGuardrailVersionError] = useState('');
   const [messages, setMessages] = useState<MessageType[]>([
     {
       messageId: uuidv4(),
@@ -465,6 +466,12 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     setModelList(LLM_BOT_COMMON_MODEL_LIST);
   }, []);
 
+  useEffect(()=>{
+    if(guardrailVersion.trim()){
+      setGuardrailVersionError('')
+    }
+  },[guardrailVersion])
+
   useEffect(() => {
     if (chatbotOption) {
       localStorage.setItem(CURRENT_CHAT_BOT, JSON.stringify(chatbotOption));
@@ -689,6 +696,12 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     } else {
       if (modelType.value === 'SageMaker' && !apiEndpoint.trim()) {
         setApiEndpointError(t('validation.requireSagemakerEndpoint'));
+        setModelSettingExpand(true);
+        return;
+      }
+
+      if(modelType.value === 'Bedrock' && guardrailIdentifier.trim() && !guardrailVersion.trim() ){
+        setGuardrailVersionError(t('validation.requireGuardrailVersion'))
         setModelSettingExpand(true);
         return;
       }
@@ -1383,9 +1396,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           </FormField>
                           <FormField
                             description={t('guardrailVersionDesc')}
+                            errorText={guardrailVersionError}
                             label={
                               <span>
-                                {t('guardrailVersion')} <i>- {t('optional')}</i>{' '}
+                                {t('guardrailVersion')} <i>- {t('conditionalOption')}</i>{' '}
                               </span>
                             }
                           >

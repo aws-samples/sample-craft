@@ -343,7 +343,7 @@ const Login: FC = () => {
       setLogging(false);
       return;
     }
-    localStorage.setItem(MODE, 'nomal')
+    localStorage.setItem(MODE, 'debug')
     localStorage.setItem(
       OIDC_STORAGE,
       JSON.stringify({
