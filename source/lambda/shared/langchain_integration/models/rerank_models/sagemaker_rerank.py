@@ -3,15 +3,15 @@ import os
 from copy import deepcopy
 from typing import Any, Dict, List, Optional, Sequence
 
-import boto3
 from langchain_community.llms.sagemaker_endpoint import ContentHandlerBase
 from langchain_core.callbacks.manager import Callbacks
 from langchain_core.documents import BaseDocumentCompressor, Document
 from langchain_core.utils import pre_init
 from pydantic import ConfigDict, Field
 from shared.constant import ModelProvider, RerankModelType
-from shared.utils.logger_utils import get_logger
 from shared.utils.boto3_utils import get_boto3_client
+from shared.utils.logger_utils import get_logger
+
 from . import RerankModelBase
 
 logger = get_logger("sagemaker_rerank_model")
@@ -173,7 +173,9 @@ class SagemakerEndpointRerank(BaseDocumentCompressor):
             # update rerank scores
             for j, doc in enumerate(batch_documents):
                 doc_copy = Document(
-                    doc.page_content, metadata=deepcopy(doc.metadata)
+                    id=doc.id,
+                    page_content=doc.page_content,
+                    metadata=deepcopy(doc.metadata),
                 )
                 doc_copy.metadata["relevance_score"] = rerank_scores[j]
                 compressed.append(doc_copy)
@@ -225,7 +227,7 @@ class SageMakerMultiModelRerankModelBase(RerankModelBase):
                 aws_access_key_id=aws_access_key_id,
                 aws_secret_access_key=aws_secret_access_key,
             )
-        
+
         if client is None:
             client = get_boto3_client(
                 "sagemaker-runtime",

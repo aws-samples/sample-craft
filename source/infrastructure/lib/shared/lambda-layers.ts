@@ -24,9 +24,9 @@ export class LambdaLayers {
       this.scope,
       "AICSSharedLayer",
       {
-        entry: path.join(__dirname, "../../../lambda/online"),
+        entry: path.join(__dirname, "../../../lambda/shared"),
         compatibleRuntimes: [Runtime.PYTHON_3_12],
-        description: `AI-Customer-Service - Online Source layer`,
+        description: `AI-Customer-Service - shared layer`,
         bundling: {
           "command": [
             "bash", "-c", "pip install -r requirements.txt -t /asset-output/python"],
@@ -63,7 +63,7 @@ export class LambdaLayers {
             // "*.png",
             // "*.md",
             // "*.zip",
-            // "lambda_main/retail/size/*"],
+            // "lambda_main/retail/size/*"
           ]
         }
       },

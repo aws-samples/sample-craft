@@ -225,44 +225,25 @@ class OpenSearchBase(BaseModel):
         return return_ids
     
     def get_search_key(self,query_dict):
-        return pickle.dumps({
+        d = {
             "opensearch_url":self.opensearch_url,
             "index": self.index_name,
             "client_kwargs":self.client_kwargs,
             "is_aoss":self.is_aoss,
             "body": query_dict
-        })
+        }
+        return pickle.dumps(d)
 
     @lru_cache_with_logging(key=get_search_key)
     def search(self, query_dict: dict):
         res = self.client.search(index=self.index_name, body=query_dict)
         return res
-    
-    # @alru_cache_with_logging(key=get_search_key)
-    # async def asearch(self, query_dict: dict):
-    #     return await self.async_client.search(
-    #         index=self.index_name, body=query_dict
-    #     )
 
     @alru_cache_with_logging(key=get_search_key)
     async def asearch(self, query_dict: dict):
          return await run_in_executor(
             None, self.search, query_dict=query_dict,
         )
-        # return await self.async_client.search(
-        #     index=self.index_name, body=query_dict
-        # )
-
-
-    # def __getstate__(self):
-    #     state = self.model_dump()
-    #     del state['client']  # 从序列化数据中移除
-        
-    #     return state
-
-    # def __setstate__(self, state):
-    #     self.__dict__.update(state)
-    #     self.secret = "Restored default"  # 反序列化时提供默认值
 
 
 class OpenSearchBM25Search(OpenSearchBase):
@@ -385,6 +366,8 @@ class OpenSearchHybridSearch(OpenSearchBase):
     source_field: str = "file_path"
     text_field: str = "text"
     vector_field: str = "vector_field"
+    chunk_id_field:str = 'chunk_id'
+    ordered_chunk_id_field:str = 'ordered_chunk_id'
     embedding_dimension: int
     space_type: str = "l2"
     m: int = 16

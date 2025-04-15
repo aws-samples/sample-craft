@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import {
   EN_LANG,
   LOGIN_TYPE,
+  MODE,
   OIDC_STORAGE,
   ROUTES,
   ZH_LANG,
@@ -342,7 +343,7 @@ const Login: FC = () => {
       setLogging(false);
       return;
     }
-
+    localStorage.setItem(MODE, 'debug')
     localStorage.setItem(
       OIDC_STORAGE,
       JSON.stringify({

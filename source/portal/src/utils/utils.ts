@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { jwtDecode } from "jwt-decode";
 import { EN_LANG, OIDC_PREFIX, OIDC_STORAGE, ZH_LANG } from './const';
 import { Dispatch, SetStateAction } from 'react';
 import { Config } from 'src/context/config-context';
@@ -97,4 +98,16 @@ export const removeKeysWithPrefix = (prefix: string) => {
 
 export const isChinaRegion = (config: Config | null) =>{
   return !(config?.oidcRegion) || config?.oidcRegion?.startsWith('cn-')
+}
+
+export const isTokenExpired = (): boolean => {
+  const credentials = getCredentials();
+  try {
+    const decoded = jwtDecode<{ exp?: number }>(credentials.accessToken || credentials.access_token);
+    if (!decoded.exp) return true;
+    return decoded.exp * 1000 < Date.now();
+  } catch (error) {
+    console.error("Error decoding token:", error);
+    return true;
+  }
 }

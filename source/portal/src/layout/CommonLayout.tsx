@@ -29,8 +29,8 @@ import {
   OIDC_STORAGE,
   OIDC_PREFIX,
   OIDC_PROVIDER,
+  MODE,
 } from 'src/utils/const';
-// import { useAuth } from 'react-oidc-context';
 import ConfigContext from 'src/context/config-context';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CustomBreadCrumb, { BreadCrumbType } from './CustomBreadCrumb';
@@ -69,6 +69,7 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   const [fullLogoutUrl, setFullLogoutUrl] = useState('');
   const config = useContext(ConfigContext);
   const navigate = useNavigate();
+  const [mode ,setMode]= useState(localStorage.getItem(MODE) || 'normal')
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
@@ -79,6 +80,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
       localStorage.removeItem(key);
     });
   };
+
+  useEffect(()=>{
+      localStorage.setItem(MODE, mode)
+  },[mode])
 
   useEffect(() => {
     let idToken = ""
@@ -163,8 +168,19 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
         identity={{
           href: ROUTES.Home,
           title: t('name'),
-        }}
+        }}    
         utilities={[
+          // {
+          //   type: "button",
+          //   iconName: "bug",
+          //   title: "Debug",
+          //   onClick: ()=>{
+          //     setMode(mode === 'normal' ? 'debug' : 'normal')
+          //   },
+          //   ariaLabel: "Notifications (unread)",
+          //   badge: mode === 'debug',
+          //   disableUtilityCollapse: false
+          // },
           {
             type: 'menu-dropdown',
             text: ZH_LANGUAGE_LIST.includes(i18n.language) ? ZH_TEXT : EN_TEXT,
@@ -184,12 +200,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
             onItemClick: (item) => {
               if (item.detail.id === 'signout') {
                 if (fullLogoutUrl) {
-                  // auth.removeUser();
                   clearStorage();
                   logout();
                   window.location.href = fullLogoutUrl;
                 }
-                // auth.removeUser();
               }
             },
             items: [{ id: 'signout', text: t('signOut') }],
