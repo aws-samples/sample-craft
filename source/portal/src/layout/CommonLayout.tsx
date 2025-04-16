@@ -82,6 +82,7 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   };
 
   useEffect(()=>{
+      setMode(mode)
       localStorage.setItem(MODE, mode)
   },[mode])
 
