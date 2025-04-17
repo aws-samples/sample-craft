@@ -139,6 +139,8 @@ async function getAwsAccountAndRegion() {
         ? "intelliAgentKb"
         : "bedrockKb";
       options.intelliAgentUserEmail = config.email;
+      options.createNewVpc = config.vpc?.createNewVpc;
+      options.existingVpcId = config.vpc?.existingVpcId;
       options.intelliAgentKbVectorStoreType = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.enabled
         ? "opensearch"
         : "unsupported";
@@ -227,6 +229,27 @@ async function processCreateOptions(options: any): Promise<void> {
   const deployInChina = mandatoryQuestionAnswers.intelliAgentDeployRegion.includes("cn");
 
   let questions = [
+    {
+      type: "confirm",
+      name: "createNewVpc",
+      message: "Do you want to create a new VPC for this environment?",
+      initial: options.createNewVpc ?? true,
+    },
+    {
+      type: "input",
+      name: "existingVpcId",
+      message: "Please enter the VPC ID you want to use",
+      initial: options.existingVpcId ?? "",
+      validate(vpcId: string) {
+        return (this as any).skipped ||
+          RegExp(/^vpc-[a-f0-9]+$/).test(vpcId)
+          ? true
+          : "Enter a valid VPC ID (e.g., vpc-0123456789abcdef0)";
+      },
+      skip(): boolean {
+        return (this as any).state.answers.createNewVpc;
+      },
+    },
     {
       type: "confirm",
       name: "enableKnowledgeBase",
@@ -516,6 +539,10 @@ async function processCreateOptions(options: any): Promise<void> {
     prefix: mandatoryQuestionAnswers.prefix,
     email: mandatoryQuestionAnswers.intelliAgentUserEmail,
     deployRegion: mandatoryQuestionAnswers.intelliAgentDeployRegion,
+    vpc: {
+      createNewVpc: answers.createNewVpc,
+      existingVpcId: answers.existingVpcId,
+    },
     knowledgeBase: {
       enabled: answers.enableKnowledgeBase,
       knowledgeBaseType: {

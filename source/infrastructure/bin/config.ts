@@ -13,6 +13,10 @@ export function getConfig(): SystemConfig {
     prefix: "",
     email: "support@example.com",
     deployRegion: "us-east-1",
+    vpc: {
+      createNewVpc: true,
+      existingVpcId: "",
+    },
     knowledgeBase: {
       enabled: true,
       knowledgeBaseType: {
