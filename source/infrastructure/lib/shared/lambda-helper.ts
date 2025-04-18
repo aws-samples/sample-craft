@@ -50,16 +50,29 @@ export class LambdaFunction extends Construct {
       memorySize: props.memorySize ?? 1024,
       environment: props.environment,
       layers: props.layers,
+      allowPublicSubnet: true,
     };
 
     if (props.vpc) {
       functionProps = {
         ...functionProps,
-        vpc: props.vpc,
-        vpcSubnets: {
-          subnets: props.vpc.privateSubnets,
-        }
+        vpc: props.vpc
       };
+      if (props.vpc.privateSubnets.length > 0) {
+        functionProps = {
+          ...functionProps,
+          vpcSubnets: {
+            subnets: props.vpc.privateSubnets,
+          },
+        };
+      } else {
+        functionProps = {
+          ...functionProps,
+          vpcSubnets: {
+            subnets: props.vpc.publicSubnets,
+          },
+        };
+      }
     }
     if (props.securityGroups) {
       functionProps = {
@@ -78,7 +91,7 @@ export class LambdaFunction extends Construct {
       functionProps = {
         ...functionProps,
         functionName: props.functionName,
-      };      
+      };
     }
 
     this.function = new Function(this, name, functionProps);

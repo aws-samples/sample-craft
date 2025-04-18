@@ -16,12 +16,12 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Domain, EngineVersion } from "aws-cdk-lib/aws-opensearchservice";
 import { Construct } from "constructs";
+import { SystemConfig } from "../shared/types";
+import { SharedConstructOutputs } from "../shared/shared-construct";
 
 interface AOSProps extends StackProps {
-  osVpc?: ec2.Vpc;
-  securityGroup?: [ec2.SecurityGroup];
-  useCustomDomain: boolean;
-  customDomainEndpoint: string;
+  readonly config: SystemConfig;
+  readonly sharedConstructOutputs: SharedConstructOutputs
 }
 
 export class AOSConstruct extends Construct {
@@ -30,19 +30,26 @@ export class AOSConstruct extends Construct {
   constructor(scope: Construct, id: string, props: AOSProps) {
     super(scope, id);
 
-    if (props.useCustomDomain) {
-      const devDomain = Domain.fromDomainEndpoint(this, "Domain", props.customDomainEndpoint);
-      this.domainEndpoint = devDomain.domainEndpoint;
-    } else {
+    const useIntelliAgentKb = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled;
+    const useCustomDomain = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain;
 
+    if (!useIntelliAgentKb) {
+      throw new Error("IntelliAgentKb is not enabled");
+    }
+
+    if (useCustomDomain) {
+      const customDomainEndpoint = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainEndpoint;
+      const devDomain = Domain.fromDomainEndpoint(this, "Domain", customDomainEndpoint);
+      this.domainEndpoint = devDomain.domainEndpoint;
+      return;
+    }
+
+    if (props.sharedConstructOutputs.useOpensearchInVpc) {
       const devDomain = new Domain(this, "Domain", {
         version: EngineVersion.OPENSEARCH_2_17,
         removalPolicy: RemovalPolicy.DESTROY,
-        vpc: props.osVpc,
-        zoneAwareness: {
-          enabled: true,
-        },
-        securityGroups: props.securityGroup,
+        vpc: props.sharedConstructOutputs.vpc,
+        securityGroups: props.sharedConstructOutputs.securityGroups,
         capacity: {
           dataNodes: 2,
           dataNodeInstanceType: "r6g.2xlarge.search",
@@ -63,7 +70,39 @@ export class AOSConstruct extends Construct {
       );
 
       this.domainEndpoint = devDomain.domainEndpoint;
-    }
+    } else {
+      const devDomain = new Domain(this, "Domain", {
+        version: EngineVersion.OPENSEARCH_2_17,
+        removalPolicy: RemovalPolicy.DESTROY,
+        capacity: {
+          dataNodes: 2,
+          dataNodeInstanceType: "r6g.2xlarge.search",
+        },
+        ebs: {
+          volumeSize: 300,
+          volumeType: ec2.EbsDeviceVolumeType.GENERAL_PURPOSE_SSD_GP3,
+        },
+        fineGrainedAccessControl: {
+          masterUserName: "admin",
+          masterUserPassword: props.sharedConstructOutputs.customDomainSecret.secretValueFromJson("password"),
+        },
+        nodeToNodeEncryption: true,
+        enforceHttps: true,
+        encryptionAtRest: {
+          enabled: true,
+        },
+      });
 
+      devDomain.addAccessPolicies(
+        new iam.PolicyStatement({
+          actions: ["es:*"],
+          effect: iam.Effect.ALLOW,
+          principals: [new iam.AnyPrincipal()],
+          resources: [`${devDomain.domainArn}/*`],
+        }),
+      );
+      // CfnDomain doesn't have the same interface as Domain, so handle endpoint differently
+      this.domainEndpoint = devDomain.domainEndpoint;
+    }
   }
 }

@@ -13,24 +13,40 @@
 
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import { Construct } from "constructs";
+import { SystemConfig } from "./types";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
-export class VpcConstruct extends Construct {
-  public vpc;
-  public privateSubnets;
-  public securityGroup;
+export interface VpcConstructProps {
+  readonly config: SystemConfig;
+}
 
-  constructor(scope: Construct, id: string) {
+
+export class VpcConstruct extends Construct {
+  public vpc: ec2.IVpc;
+  public securityGroup: ec2.SecurityGroup;
+
+  constructor(scope: Construct, id: string, props: VpcConstructProps) {
     super(scope, id);
 
-    this.vpc = new ec2.Vpc(this, "LLM-VPC", {
-      ipAddresses: ec2.IpAddresses.cidr("10.100.0.0/16"),
-      maxAzs: 2,
-    });
+    // Check if we should create a new VPC or use an existing one
+    if (props.config.vpc.createNewVpc) {
+      // Create a new VPC
+      this.vpc = new ec2.Vpc(this, "LLM-VPC", {
+        ipAddresses: ec2.IpAddresses.cidr("10.100.0.0/16"),
+        maxAzs: 2,
+      });
+    } else {
+      // Use existing VPC
+      if (!props.config.vpc.existingVpcId) {
+        throw new Error("existingVpcId is required when createNewVpc is false. Please check your config.json file.");
+      }
 
-    this.privateSubnets = this.vpc.privateSubnets;
+      this.vpc = ec2.Vpc.fromLookup(this, "LLM-VPC", {
+        vpcId: props.config.vpc.existingVpcId,
+      });
+    }
 
     this.securityGroup = new ec2.SecurityGroup(this, "LLM-VPC-SG", {
       vpc: this.vpc,
@@ -47,10 +63,12 @@ export class VpcConstruct extends Construct {
       service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
     });
 
-    this.vpc.addInterfaceEndpoint("Glue", {
-      service: ec2.InterfaceVpcEndpointAwsService.GLUE,
-      securityGroups: [this.securityGroup],
-      subnets: { subnets: this.privateSubnets },
-    });
+    if (this.vpc.privateSubnets.length > 0) {
+      this.vpc.addInterfaceEndpoint("Glue", {
+        service: ec2.InterfaceVpcEndpointAwsService.GLUE,
+        securityGroups: [this.securityGroup],
+        subnets: { subnets: this.vpc.privateSubnets },
+      });
+    }
   }
 }

@@ -15,12 +15,13 @@ import { Construct } from "constructs";
 import * as dotenv from "dotenv";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
 import { DynamoDBTable } from "./table";
 import { VpcConstruct } from "./vpc-construct";
-import { Vpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { SecurityGroup, IVpc } from 'aws-cdk-lib/aws-ec2';
 
 dotenv.config();
 
@@ -34,8 +35,11 @@ export interface SharedConstructOutputs {
   indexTable: dynamodb.Table;
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
-  vpc?: Vpc;
+  vpc?: IVpc;
   securityGroups?: [SecurityGroup];
+  useOpensearchInVpc: boolean;
+  customDomainSecret: secretsmanager.Secret;
+  customDomainSecretArn: string;
 }
 
 export class SharedConstruct extends Construct implements SharedConstructOutputs {
@@ -44,18 +48,20 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public indexTable: dynamodb.Table;
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
-  public vpc?: Vpc;
+  public vpc?: IVpc;
   public securityGroups?: [SecurityGroup];
-
+  public useOpensearchInVpc: boolean;
+  public customDomainSecret!: secretsmanager.Secret;
+  public customDomainSecretArn: string;
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
 
     const iamHelper = new IAMHelper(this, "iam-helper");
     let vpcConstruct;
 
-    if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
-      vpcConstruct = new VpcConstruct(this, "vpc-construct");
-    }
+    vpcConstruct = new VpcConstruct(this, "vpc-construct", {
+      config: props.config,
+    });
 
     const groupNameAttr = {
       name: "groupName",
@@ -82,10 +88,32 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    if (vpcConstruct !== undefined) {
-      this.vpc = vpcConstruct.vpc;
-      this.securityGroups = [vpcConstruct.securityGroup];
+    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
+      this.useOpensearchInVpc = false;
+      this.customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
+    } else {
+      if (vpcConstruct.vpc.privateSubnets.length > 0) {
+        this.useOpensearchInVpc = true;
+        this.customDomainSecretArn = "";
+      } else {
+        const customDomainSecret = new secretsmanager.Secret(this, "CustomDomainSecret", {
+          generateSecretString: {
+            secretStringTemplate: JSON.stringify({ username: "admin" }),
+            generateStringKey: "password",
+            excludePunctuation: false,
+            includeSpace: false,
+            requireEachIncludedType: true,
+            passwordLength: 16
+          }
+        });
+        this.customDomainSecret = customDomainSecret;
+        this.useOpensearchInVpc = false;
+        this.customDomainSecretArn = customDomainSecret.secretArn;
+      }
     }
+
+    this.vpc = vpcConstruct.vpc;
+    this.securityGroups = [vpcConstruct.securityGroup];
     this.iamHelper = iamHelper;
     this.chatbotTable = chatbotTable;
     this.indexTable = indexTable;

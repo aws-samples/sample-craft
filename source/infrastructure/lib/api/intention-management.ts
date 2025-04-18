@@ -16,14 +16,14 @@ import { Construct } from "constructs";
 import { join } from "path";
 import * as pyLambda from "@aws-cdk/aws-lambda-python-alpha";
 import { IAMHelper } from "../shared/iam-helper";
-import { Vpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { IVpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { SystemConfig } from "../shared/types";
 import { LambdaFunction } from "../shared/lambda-helper";
-
+import { SharedConstructOutputs } from "../shared/shared-construct";
 export interface IntentionApiProps {
   api: apigw.RestApi;
   auth: apigw.RequestAuthorizer;
-  vpc: Vpc;
+  vpc: IVpc;
   securityGroups: [SecurityGroup];
   intentionTableName: string;
   indexTable: string;
@@ -37,12 +37,13 @@ export interface IntentionApiProps {
   intentionLayer: pyLambda.PythonLayerVersion;
   iamHelper: IAMHelper;
   genMethodOption: any;
+  sharedConstructOutputs: SharedConstructOutputs;
 }
 
 export class IntentionApi extends Construct {
   private readonly api: apigw.RestApi;
   private readonly auth: apigw.RequestAuthorizer;
-  private readonly vpc: Vpc;
+  private readonly vpc: IVpc;
   private readonly securityGroups: [SecurityGroup];
   private readonly sharedLayer: pyLambda.PythonLayerVersion;
   private readonly intentionLayer: pyLambda.PythonLayerVersion;
@@ -77,12 +78,7 @@ export class IntentionApi extends Construct {
     this.iamHelper = props.iamHelper;
     this.genMethodOption = props.genMethodOption;
 
-    let customDomainSecretArn;
-    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-      customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-    } else {
-      customDomainSecretArn = "";
-    }
+    const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
 
     const intentionLambda = new LambdaFunction(scope, "IntentionLambda", {
       runtime: Runtime.PYTHON_3_12,

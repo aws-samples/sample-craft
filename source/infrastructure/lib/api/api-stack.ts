@@ -299,12 +299,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         statements: [this.iamHelper.s3Statement],
       });
 
-      let customDomainSecretArn;
-      if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-        customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-      } else {
-        customDomainSecretArn = "";
-      }
+      const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
 
       const kbSearchLambda = new LambdaFunction(this, "KbSearchLambda", {
         code: Code.fromCustomCommand(
@@ -458,6 +453,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         intentionLayer: intentionLayer,
         iamHelper: this.iamHelper,
         genMethodOption: this.genMethodOption,
+        sharedConstructOutputs: props.sharedConstructOutputs,
       });
       intentionApi.node.addDependency(promptApi);
 

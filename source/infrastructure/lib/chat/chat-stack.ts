@@ -109,12 +109,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     });
 
     // Add custom domain secret arn to environment variables
-    let customDomainSecretArn;
-    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-      customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-    } else {
-      customDomainSecretArn = "";
-    }
+    const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
     const lambdaOnlineMain = new LambdaFunction(this, "lambdaOnlineMain", {
       runtime: Runtime.PYTHON_3_12,
       handler: "lambda_main.main.lambda_handler",

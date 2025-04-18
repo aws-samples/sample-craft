@@ -69,10 +69,8 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
     this.glueResultBucket = props.sharedConstructOutputs.resultBucket;
 
     const aosConstruct = new AOSConstruct(this, "aos-construct", {
-      osVpc: props.sharedConstructOutputs.vpc,
-      securityGroup: props.sharedConstructOutputs.securityGroups,
-      useCustomDomain: props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain,
-      customDomainEndpoint: props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainEndpoint,
+      config: props.config,
+      sharedConstructOutputs: props.sharedConstructOutputs,
     });
     this.aosDomainEndpoint = aosConstruct.domainEndpoint;
     this.glueLibS3Bucket = new s3.Bucket(this, "llm-bot-glue-lib-bucket", {
@@ -137,18 +135,7 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
 
   private createKnowledgeBaseJob(props: any) {
     const deployRegion = props.config.deployRegion;
-    let customDomainSecretArn;
-    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-      customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-    } else {
-      customDomainSecretArn = "-";
-    }
-
-    const connection = new glue.Connection(this, "GlueJobConnection", {
-      type: glue.ConnectionType.NETWORK,
-      subnet: props.sharedConstructOutputs.vpc.privateSubnets[0],
-      securityGroups: props.sharedConstructOutputs.securityGroups,
-    });
+    const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
 
     const notificationLambda = new Function(this, "ETLNotification", {
       code: Code.fromAsset(join(__dirname, "../../../lambda/etl")),
@@ -227,8 +214,7 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
       glueJobDefaultArguments["--python-modules-installer-option"] = "-i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple";
     }
 
-    // Create glue job to process files specified in s3 bucket and prefix
-    const glueJob = new glue.Job(this, "PythonEtlJob", {
+    let glueJobProps: glue.JobProps = {
       executable: glue.JobExecutable.pythonEtl({
         glueVersion: glue.GlueVersion.V4_0,
         pythonVersion: glue.PythonVersion.THREE,
@@ -241,10 +227,24 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
       workerCount: 2,
       maxConcurrentRuns: 200,
       maxRetries: 1,
-      connections: [connection],
       role: glueRole,
       defaultArguments: glueJobDefaultArguments,
-    });
+    }
+
+    if (props.sharedConstructOutputs.useOpensearchInVpc) {
+      const connection = new glue.Connection(this, "GlueJobConnection", {
+        type: glue.ConnectionType.NETWORK,
+        subnet: props.sharedConstructOutputs.vpc.privateSubnets[0],
+        securityGroups: props.sharedConstructOutputs.securityGroups,
+      });
+      // Create new props object with connection
+      glueJobProps = {
+        ...glueJobProps,
+        connections: [connection]
+      };
+    }
+    // Create glue job to process files specified in s3 bucket and prefix
+    const glueJob = new glue.Job(this, "PythonEtlJob", glueJobProps);
 
     // Create SNS topic and subscription to notify when glue job is completed
     const topic = new sns.Topic(this, "etl-topic", {
