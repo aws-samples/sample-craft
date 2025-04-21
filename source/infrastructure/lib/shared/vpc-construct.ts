@@ -48,6 +48,11 @@ export class VpcConstruct extends Construct {
       });
     }
 
+    // throw error if no private subnets
+    if (this.vpc.privateSubnets.length === 0) {
+      throw new Error("No private subnets found in the VPC. Please check your VPC configuration.");
+    }
+
     this.securityGroup = new ec2.SecurityGroup(this, "LLM-VPC-SG", {
       vpc: this.vpc,
       description: "LLM Security Group",
@@ -63,12 +68,11 @@ export class VpcConstruct extends Construct {
       service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
     });
 
-    if (this.vpc.privateSubnets.length > 0) {
-      this.vpc.addInterfaceEndpoint("Glue", {
-        service: ec2.InterfaceVpcEndpointAwsService.GLUE,
-        securityGroups: [this.securityGroup],
-        subnets: { subnets: this.vpc.privateSubnets },
-      });
-    }
+    this.vpc.addInterfaceEndpoint("Glue", {
+      service: ec2.InterfaceVpcEndpointAwsService.GLUE,
+      securityGroups: [this.securityGroup],
+      subnets: { subnets: this.vpc.privateSubnets },
+    });
+
   }
 }

@@ -15,7 +15,6 @@ import { Construct } from "constructs";
 import * as dotenv from "dotenv";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
@@ -38,7 +37,6 @@ export interface SharedConstructOutputs {
   vpc?: IVpc;
   securityGroups?: [SecurityGroup];
   useOpensearchInVpc: boolean;
-  customDomainSecret: secretsmanager.Secret;
   customDomainSecretArn: string;
 }
 
@@ -51,7 +49,6 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public vpc?: IVpc;
   public securityGroups?: [SecurityGroup];
   public useOpensearchInVpc: boolean;
-  public customDomainSecret!: secretsmanager.Secret;
   public customDomainSecretArn: string;
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
@@ -92,24 +89,8 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       this.useOpensearchInVpc = false;
       this.customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
     } else {
-      if (vpcConstruct.vpc.privateSubnets.length > 0) {
-        this.useOpensearchInVpc = true;
-        this.customDomainSecretArn = "";
-      } else {
-        const customDomainSecret = new secretsmanager.Secret(this, "CustomDomainSecret", {
-          generateSecretString: {
-            secretStringTemplate: JSON.stringify({ username: "admin" }),
-            generateStringKey: "password",
-            excludePunctuation: false,
-            includeSpace: false,
-            requireEachIncludedType: true,
-            passwordLength: 16
-          }
-        });
-        this.customDomainSecret = customDomainSecret;
-        this.useOpensearchInVpc = false;
-        this.customDomainSecretArn = customDomainSecret.secretArn;
-      }
+      this.useOpensearchInVpc = true;
+      this.customDomainSecretArn = "";
     }
 
     this.vpc = vpcConstruct.vpc;

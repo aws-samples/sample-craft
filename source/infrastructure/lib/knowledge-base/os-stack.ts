@@ -42,9 +42,7 @@ export class AOSConstruct extends Construct {
       const devDomain = Domain.fromDomainEndpoint(this, "Domain", customDomainEndpoint);
       this.domainEndpoint = devDomain.domainEndpoint;
       return;
-    }
-
-    if (props.sharedConstructOutputs.useOpensearchInVpc) {
+    } else {
       const devDomain = new Domain(this, "Domain", {
         version: EngineVersion.OPENSEARCH_2_17,
         removalPolicy: RemovalPolicy.DESTROY,
@@ -69,39 +67,6 @@ export class AOSConstruct extends Construct {
         }),
       );
 
-      this.domainEndpoint = devDomain.domainEndpoint;
-    } else {
-      const devDomain = new Domain(this, "Domain", {
-        version: EngineVersion.OPENSEARCH_2_17,
-        removalPolicy: RemovalPolicy.DESTROY,
-        capacity: {
-          dataNodes: 2,
-          dataNodeInstanceType: "r6g.2xlarge.search",
-        },
-        ebs: {
-          volumeSize: 300,
-          volumeType: ec2.EbsDeviceVolumeType.GENERAL_PURPOSE_SSD_GP3,
-        },
-        fineGrainedAccessControl: {
-          masterUserName: "admin",
-          masterUserPassword: props.sharedConstructOutputs.customDomainSecret.secretValueFromJson("password"),
-        },
-        nodeToNodeEncryption: true,
-        enforceHttps: true,
-        encryptionAtRest: {
-          enabled: true,
-        },
-      });
-
-      devDomain.addAccessPolicies(
-        new iam.PolicyStatement({
-          actions: ["es:*"],
-          effect: iam.Effect.ALLOW,
-          principals: [new iam.AnyPrincipal()],
-          resources: [`${devDomain.domainArn}/*`],
-        }),
-      );
-      // CfnDomain doesn't have the same interface as Domain, so handle endpoint differently
       this.domainEndpoint = devDomain.domainEndpoint;
     }
   }

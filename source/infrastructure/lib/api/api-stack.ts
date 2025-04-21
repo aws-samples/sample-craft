@@ -312,6 +312,8 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
           ]
         ),
         handler: "knowledge_base_search.lambda_handler",
+        vpc: vpc,
+        securityGroups: securityGroups,
         environment: {
           AOS_ENDPOINT: domainEndpoint,
           AOS_SECRET_ARN: customDomainSecretArn,
