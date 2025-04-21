@@ -65,10 +65,6 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
   private iamHelper: IAMHelper;
   private indexTableName: string;
   private modelTableName: string;
-  // private lambdaOnlineQueryPreprocess: Function;
-  // private lambdaOnlineIntentionDetection: Function;
-  // private lambdaOnlineAgent: Function;
-  // private lambdaOnlineLLMGenerate: Function;
 
   constructor(scope: Construct, id: string, props: ChatStackProps) {
     super(scope, id);
