@@ -179,6 +179,8 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
           "ec2:Describe*",
           "ec2:CreateNetworkInterface",
           "ec2:AttachNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DetachNetworkInterface",
           "ec2:CreateTags",
           "secretsmanager:GetSecretValue",
         ],
