@@ -43,12 +43,19 @@ export class AOSConstruct extends Construct {
       this.domainEndpoint = devDomain.domainEndpoint;
       return;
     } else {
-      const devDomain = new Domain(this, "Domain", {
+      if (!props.sharedConstructOutputs.privateSubnets) {
+        throw new Error("Private subnets are not detected in the shared construct outputs");
+      }
+      // Use Dynamic resource name(`Domain-${props.config.vpc.existingVpcId}`) to avoid name collision.
+      // This is caused by the update mechanism of the OpenSearch service in AWS CDK.
+      // Even we fill in a new vpc here, CDK still tries to update the existing domain first which will cause subnet not found error.
+      const devDomain = new Domain(this, `Domain-${props.config.vpc.existingVpcId}`, {
         version: EngineVersion.OPENSEARCH_2_17,
         removalPolicy: RemovalPolicy.DESTROY,
         vpc: props.sharedConstructOutputs.vpc,
+        // OpenSearch requires a single subnet in a VPC
         vpcSubnets: [{
-          subnets: props.sharedConstructOutputs.privateSubnets,
+          subnets: [props.sharedConstructOutputs.privateSubnets[0]],
         }],
         securityGroups: props.sharedConstructOutputs.securityGroups,
         capacity: {
