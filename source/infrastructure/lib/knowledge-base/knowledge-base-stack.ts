@@ -234,7 +234,7 @@ export class KnowledgeBaseStack extends NestedStack implements KnowledgeBaseStac
     if (props.sharedConstructOutputs.useOpensearchInVpc) {
       const connection = new glue.Connection(this, "GlueJobConnection", {
         type: glue.ConnectionType.NETWORK,
-        subnet: props.sharedConstructOutputs.vpc.privateSubnets[0],
+        subnet: props.sharedConstructOutputs.privateSubnets[0],
         securityGroups: props.sharedConstructOutputs.securityGroups,
       });
       // Create new props object with connection

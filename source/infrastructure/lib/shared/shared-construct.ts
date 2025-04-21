@@ -20,7 +20,7 @@ import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
 import { DynamoDBTable } from "./table";
 import { VpcConstruct } from "./vpc-construct";
-import { SecurityGroup, IVpc } from 'aws-cdk-lib/aws-ec2';
+import { SecurityGroup, IVpc, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
 dotenv.config();
 
@@ -35,7 +35,8 @@ export interface SharedConstructOutputs {
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
   vpc?: IVpc;
-  securityGroups?: [SecurityGroup];
+  privateSubnets?: ISubnet[];
+  securityGroups?: SecurityGroup[];
   useOpensearchInVpc: boolean;
   customDomainSecretArn: string;
 }
@@ -47,7 +48,8 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
   public vpc?: IVpc;
-  public securityGroups?: [SecurityGroup];
+  public privateSubnets?: ISubnet[];
+  public securityGroups?: SecurityGroup[];
   public useOpensearchInVpc: boolean;
   public customDomainSecretArn: string;
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
@@ -94,7 +96,8 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
     }
 
     this.vpc = vpcConstruct.vpc;
-    this.securityGroups = [vpcConstruct.securityGroup];
+    this.privateSubnets = vpcConstruct.privateSubnets;
+    this.securityGroups = vpcConstruct.securityGroups;
     this.iamHelper = iamHelper;
     this.chatbotTable = chatbotTable;
     this.indexTable = indexTable;

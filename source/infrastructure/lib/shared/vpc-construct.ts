@@ -25,7 +25,8 @@ export interface VpcConstructProps {
 
 export class VpcConstruct extends Construct {
   public vpc: ec2.IVpc;
-  public securityGroup: ec2.SecurityGroup;
+  public privateSubnets: ec2.ISubnet[];
+  public securityGroups: ec2.SecurityGroup[];
 
   constructor(scope: Construct, id: string, props: VpcConstructProps) {
     super(scope, id);
@@ -37,6 +38,8 @@ export class VpcConstruct extends Construct {
         ipAddresses: ec2.IpAddresses.cidr("10.100.0.0/16"),
         maxAzs: 2,
       });
+
+      this.privateSubnets = this.vpc.privateSubnets;
     } else {
       // Use existing VPC
       if (!props.config.vpc.existingVpcId) {
@@ -46,23 +49,31 @@ export class VpcConstruct extends Construct {
       this.vpc = ec2.Vpc.fromLookup(this, "LLM-VPC", {
         vpcId: props.config.vpc.existingVpcId,
       });
+
+      // throw error if no private subnets
+      if (this.vpc.privateSubnets.length === 0) {
+        throw new Error("No private subnets found in the VPC. Please check your VPC configuration.");
+      }
+
+      this.privateSubnets = this.vpc.selectSubnets({
+        subnetFilters: [
+          ec2.SubnetFilter.byIds([props.config.vpc.existingPrivateSubnetId]),
+        ],
+      }).subnets;
     }
 
-    // throw error if no private subnets
-    if (this.vpc.privateSubnets.length === 0) {
-      throw new Error("No private subnets found in the VPC. Please check your VPC configuration.");
-    }
-
-    this.securityGroup = new ec2.SecurityGroup(this, "LLM-VPC-SG", {
+    const securityGroup = new ec2.SecurityGroup(this, "LLM-VPC-SG", {
       vpc: this.vpc,
       description: "LLM Security Group",
     });
 
-    this.securityGroup.addIngressRule(
-      this.securityGroup,
+    securityGroup.addIngressRule(
+      securityGroup,
       ec2.Port.allTraffic(),
       "allow self traffic",
     );
+
+    this.securityGroups = [securityGroup];
 
     this.vpc.addGatewayEndpoint("DynamoDbEndpoint", {
       service: ec2.GatewayVpcEndpointAwsService.DYNAMODB,
@@ -70,8 +81,7 @@ export class VpcConstruct extends Construct {
 
     this.vpc.addInterfaceEndpoint("Glue", {
       service: ec2.InterfaceVpcEndpointAwsService.GLUE,
-      securityGroups: [this.securityGroup],
-      subnets: { subnets: this.vpc.privateSubnets },
+      securityGroups: this.securityGroups
     });
 
   }

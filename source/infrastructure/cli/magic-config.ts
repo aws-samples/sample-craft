@@ -141,6 +141,7 @@ async function getAwsAccountAndRegion() {
       options.intelliAgentUserEmail = config.email;
       options.createNewVpc = config.vpc?.createNewVpc;
       options.existingVpcId = config.vpc?.existingVpcId;
+      options.existingPrivateSubnetId = config.vpc?.existingPrivateSubnetId;
       options.intelliAgentKbVectorStoreType = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.enabled
         ? "opensearch"
         : "unsupported";
@@ -245,6 +246,22 @@ async function processCreateOptions(options: any): Promise<void> {
           RegExp(/^vpc-[a-f0-9]+$/).test(vpcId)
           ? true
           : "Enter a valid VPC ID (e.g., vpc-0123456789abcdef0)";
+      },
+      skip(): boolean {
+        return (this as any).state.answers.createNewVpc;
+      },
+    },
+    {
+      type: "input",
+      name: "existingPrivateSubnetId",
+      message: "Please enter the private subnet ID you want to use",
+      hint: "The solution can only be deployed in a VPC with a private subnet, and the private subnet must have a NAT gateway configured",
+      initial: options.existingPrivateSubnetId ?? "",
+      validate(subnetId: string) {
+        return (this as any).skipped ||
+          RegExp(/^subnet-[a-f0-9]+$/).test(subnetId)
+          ? true
+          : "Enter a valid subnet ID (e.g., subnet-0123456789abcdef0)";
       },
       skip(): boolean {
         return (this as any).state.answers.createNewVpc;
@@ -542,6 +559,7 @@ async function processCreateOptions(options: any): Promise<void> {
     vpc: {
       createNewVpc: answers.createNewVpc,
       existingVpcId: answers.existingVpcId,
+      existingPrivateSubnetId: answers.existingPrivateSubnetId,
     },
     knowledgeBase: {
       enabled: answers.enableKnowledgeBase,

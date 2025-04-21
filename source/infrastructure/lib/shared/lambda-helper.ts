@@ -14,7 +14,7 @@
 import { Duration } from "aws-cdk-lib";
 import { Function, Runtime, Code, FunctionProps } from 'aws-cdk-lib/aws-lambda';
 import { Construct } from "constructs";
-import { IVpc, SecurityGroup } from "aws-cdk-lib/aws-ec2";
+import { IVpc, SecurityGroup, ISubnet } from "aws-cdk-lib/aws-ec2";
 import { ILayerVersion } from "aws-cdk-lib/aws-lambda";
 import { Role, PolicyStatement } from "aws-cdk-lib/aws-iam";
 
@@ -25,7 +25,8 @@ interface LambdaFunctionProps {
   handler?: string;
   code: Code;
   vpc?: IVpc;
-  securityGroups?: [SecurityGroup];
+  privateSubnets?: ISubnet[];
+  securityGroups?: SecurityGroup[];
   environment?: { [key: string]: string };
   layers?: ILayerVersion[];
   memorySize?: number;
@@ -56,23 +57,11 @@ export class LambdaFunction extends Construct {
     if (props.vpc) {
       functionProps = {
         ...functionProps,
-        vpc: props.vpc
+        vpc: props.vpc,
+        vpcSubnets: {
+          subnets: props.privateSubnets,
+        },
       };
-      if (props.vpc.privateSubnets.length > 0) {
-        functionProps = {
-          ...functionProps,
-          vpcSubnets: {
-            subnets: props.vpc.privateSubnets,
-          },
-        };
-      } else {
-        functionProps = {
-          ...functionProps,
-          vpcSubnets: {
-            subnets: props.vpc.publicSubnets,
-          },
-        };
-      }
     }
     if (props.securityGroups) {
       functionProps = {

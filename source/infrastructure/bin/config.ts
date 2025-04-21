@@ -16,6 +16,7 @@ export function getConfig(): SystemConfig {
     vpc: {
       createNewVpc: true,
       existingVpcId: "",
+      existingPrivateSubnetId: "",
     },
     knowledgeBase: {
       enabled: true,

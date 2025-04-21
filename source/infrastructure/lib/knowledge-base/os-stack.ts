@@ -47,6 +47,9 @@ export class AOSConstruct extends Construct {
         version: EngineVersion.OPENSEARCH_2_17,
         removalPolicy: RemovalPolicy.DESTROY,
         vpc: props.sharedConstructOutputs.vpc,
+        vpcSubnets: [{
+          subnets: props.sharedConstructOutputs.privateSubnets,
+        }],
         securityGroups: props.sharedConstructOutputs.securityGroups,
         capacity: {
           dataNodes: 2,

@@ -16,7 +16,7 @@ import { Construct } from "constructs";
 import { join } from "path";
 import * as pyLambda from "@aws-cdk/aws-lambda-python-alpha";
 import { IAMHelper } from "../shared/iam-helper";
-import { IVpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { ISubnet, IVpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
 import { SystemConfig } from "../shared/types";
 import { LambdaFunction } from "../shared/lambda-helper";
 import { SharedConstructOutputs } from "../shared/shared-construct";
@@ -24,7 +24,8 @@ export interface IntentionApiProps {
   api: apigw.RestApi;
   auth: apigw.RequestAuthorizer;
   vpc: IVpc;
-  securityGroups: [SecurityGroup];
+  privateSubnets: ISubnet[];
+  securityGroups: SecurityGroup[];
   intentionTableName: string;
   indexTable: string;
   chatbotTable: string;
@@ -44,7 +45,8 @@ export class IntentionApi extends Construct {
   private readonly api: apigw.RestApi;
   private readonly auth: apigw.RequestAuthorizer;
   private readonly vpc: IVpc;
-  private readonly securityGroups: [SecurityGroup];
+  private readonly privateSubnets: ISubnet[];
+  private readonly securityGroups: SecurityGroup[];
   private readonly sharedLayer: pyLambda.PythonLayerVersion;
   private readonly intentionLayer: pyLambda.PythonLayerVersion;
   private readonly iamHelper: IAMHelper;
@@ -64,6 +66,7 @@ export class IntentionApi extends Construct {
     this.api = props.api;
     this.auth = props.auth;
     this.vpc = props.vpc;
+    this.privateSubnets = props.privateSubnets;
     this.securityGroups = props.securityGroups;
     this.intentionTableName = props.intentionTableName;
     this.indexTable = props.indexTable;
@@ -94,6 +97,7 @@ export class IntentionApi extends Construct {
         ]
       ),
       vpc: this.vpc,
+      privateSubnets: this.privateSubnets,
       securityGroups: this.securityGroups,
       environment: {
         INTENTION_TABLE_NAME: this.intentionTableName,

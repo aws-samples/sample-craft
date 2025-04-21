@@ -165,6 +165,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
 
     this.iamHelper = props.sharedConstructOutputs.iamHelper;
     const vpc = props.sharedConstructOutputs.vpc;
+    const privateSubnets = props.sharedConstructOutputs.privateSubnets;
     const securityGroups = props.sharedConstructOutputs.securityGroups;
     const domainEndpoint = props.knowledgeBaseStackOutputs.aosDomainEndpoint;
     const sessionsTableName = props.chatStackOutputs.sessionsTableName;
@@ -313,6 +314,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         ),
         handler: "knowledge_base_search.lambda_handler",
         vpc: vpc,
+        privateSubnets: privateSubnets,
         securityGroups: securityGroups,
         environment: {
           AOS_ENDPOINT: domainEndpoint,
@@ -442,6 +444,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         api: this.api,
         auth: this.auth,
         vpc: vpc!,
+        privateSubnets: privateSubnets!,
         securityGroups: securityGroups!,
         intentionTableName: props.chatStackOutputs.intentionTableName,
         indexTable: props.sharedConstructOutputs.indexTable.tableName,

@@ -7,6 +7,7 @@ export interface SystemConfig {
   vpc: {
     createNewVpc: boolean;
     existingVpcId: string;
+    existingPrivateSubnetId: string;
   };
   knowledgeBase: {
     enabled: boolean;
