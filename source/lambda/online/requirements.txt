@@ -9,3 +9,5 @@ langchain-openai==0.3.7
 cachetools==5.5.2
 langchain-mcp-adapters==0.0.8
 mcp==1.6.0
+fastapi==0.110.0
+uvicorn==0.27.1
