@@ -209,7 +209,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
     const uiExports = new UiExportsConstruct(this, "MainUIExportAsset", {
       portalBucketName: props.portalBucketName,
       uiProps: {
-        websocket: props.apiConstructOutputs.wsEndpoint,
+        // websocket: props.apiConstructOutputs.wsEndpoint,
         workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,
@@ -232,7 +232,6 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
     const clientUiExports = new UiExportsConstruct(this, "ClientUIExportAsset", {
       portalBucketName: props.clientPortalBucketName,
       uiProps: {
-        websocket: props.apiConstructOutputs.wsEndpoint,
         workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,

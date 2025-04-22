@@ -198,9 +198,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     openAiKey.grantRead(this.lambdaOnlineMain);
 
     if (props.config.chat.amazonConnect.enabled) {
-      new ConnectConstruct(this, "connect-construct", {
-        lambdaOnlineMain: lambdaOnlineMain.function,
-      });
+      new ConnectConstruct(this, "connect-construct");
     }
   }
 }

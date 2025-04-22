@@ -20,7 +20,6 @@ import { Construct } from "constructs";
 import { join } from "path";
 import * as S3Deployment from 'aws-cdk-lib/aws-s3-deployment';
 import { LambdaLayers } from "../shared/lambda-layers";
-import { WebSocketConstruct } from "./websocket-api";
 import { IAMHelper } from "../shared/iam-helper";
 import { SystemConfig } from "../shared/types";
 import { SharedConstructOutputs } from "../shared/shared-construct";
@@ -481,25 +480,6 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
       const apiResourceLLM = this.api.root.addResource("llm");
       apiResourceLLM.addMethod("POST", lambdaExecutorIntegration, this.genMethodOption(this.api, this.auth, null));
       apiResourceLLM.node.addDependency(modelApi);
-
-      const lambdaDispatcher = new LambdaFunction(this, "lambdaDispatcher", {
-        code: Code.fromAsset(join(__dirname, "../../../lambda/dispatcher")),
-        environment: {
-          SQS_QUEUE_URL: messageQueue.queueUrl,
-        },
-        statements: [sqsStatement],
-      });
-
-      // Create WebSocket API after all REST APIs
-      const webSocketApi = new WebSocketConstruct(this, "WebSocketApi", {
-        dispatcherLambda: lambdaDispatcher.function,
-        sendMessageLambda: props.chatStackOutputs.lambdaOnlineMain,
-        customAuthorizerLambda: this.customAuthorizerLambda.function,
-      });
-
-      // Set WebSocket endpoint
-      let wsStage = webSocketApi.websocketApiStage;
-      this.wsEndpoint = `${wsStage.api.apiEndpoint}/${wsStage.stageName}/`;
     }
 
     // Final deployment and stage

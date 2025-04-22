@@ -111,9 +111,9 @@ export class RootStack extends Stack {
       value: props.portalUrl,
       description: "Web portal url",
     });
-    new CfnOutput(this, "WebSocket Endpoint Address", {
-      value: apiConstruct.wsEndpoint,
-    });
+    // new CfnOutput(this, "WebSocket Endpoint Address", {
+    //   value: apiConstruct.wsEndpoint,
+    // });
     if (!isChinaRegion) {
       new CfnOutput(this, "OIDC Client ID", {
         value: props.oidcClientId || '',
