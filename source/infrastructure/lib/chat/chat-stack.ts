@@ -66,9 +66,9 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
   private iamHelper: IAMHelper;
   private indexTableName: string;
   private modelTableName: string;
-  // public ecsService: ecs.FargateService;
-  // public loadBalancer: elbv2.ApplicationLoadBalancer;
-  // public listener: elbv2.ApplicationListener;
+  public ecsService: ecs.FargateService;
+  public loadBalancer: elbv2.ApplicationLoadBalancer;
+  public listener: elbv2.ApplicationListener;
   public container: ecs.ContainerDefinition;
 
   constructor(scope: Construct, id: string, props: ChatStackProps) {
@@ -196,58 +196,39 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
       ],
     });
 
-    // // Create Application Load Balancer
-    // this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'ChatLoadBalancer', {
-    //   vpc: vpc!,
-    //   internetFacing: false,
-    //   vpcSubnets: vpc?.selectSubnets({
-    //     subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-    //   }) ?? { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-    // });
+    this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'ChatLoadBalancer', {
+      vpc: vpc,
+      internetFacing: false,
+    });
 
-    // // Create ALB listener
-    // this.listener = this.loadBalancer.addListener('ChatListener', {
-    //   port: 80,
-    //   protocol: elbv2.ApplicationProtocol.HTTP,
-    // });
+    // Create Fargate service
+    this.ecsService = new ecs.FargateService(this, 'ChatService', {
+      platformVersion: ecs.FargatePlatformVersion.VERSION1_4,
+      cluster: cluster,
+      taskDefinition: taskDefinition,
+      desiredCount: 1,
+    });
 
-    // // Create target group
-    // const targetGroup = this.listener.addTargets('ChatTargetGroup', {
-    //   port: 80,
-    //   protocol: elbv2.ApplicationProtocol.HTTP,
-    //   targets: [],
-    //   healthCheck: {
-    //     path: '/health',
-    //     healthyHttpCodes: '200',
-    //     interval: Duration.seconds(60),
-    //     timeout: Duration.seconds(5),
-    //   },
-    //   deregistrationDelay: Duration.seconds(30),
-    // });
 
-    // // Create Fargate service
-    // this.ecsService = new ecs.FargateService(this, 'ChatService', {
-    //   cluster,
-    //   taskDefinition,
-    //   desiredCount: 1,
-    //   securityGroups,
-    //   vpcSubnets: vpc?.selectSubnets({
-    //     subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-    //   }) ?? { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-    //   assignPublicIp: false,
-    //   capacityProviderStrategies: [
-    //     {
-    //       capacityProvider: 'FARGATE',
-    //       weight: 1,
-    //     },
-    //   ],
-    //   // Enable service discovery for VPC communication
-    //   enableExecuteCommand: true,
-    //   circuitBreaker: { rollback: true },
-    // });
+    this.listener = this.loadBalancer.addListener('ChatListener', {
+      port: 80,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+    });
+    
+    const targetGroup = this.listener.addTargets('ChatTargetGroup', {
+      port: 80,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targets: [this.ecsService],
+      healthCheck: {
+        path: '/health',
+        healthyHttpCodes: '200',
+        interval: Duration.seconds(60),
+        timeout: Duration.seconds(5),
+      },
+      deregistrationDelay: Duration.seconds(30),
+    });
 
-    // // Add container to target group
-    // targetGroup.addTarget(this.ecsService);
+    
 
 
     // // Add SQS queue as event source

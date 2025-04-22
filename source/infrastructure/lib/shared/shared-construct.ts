@@ -34,8 +34,8 @@ export interface SharedConstructOutputs {
   indexTable: dynamodb.Table;
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
-  vpc?: Vpc;
-  securityGroups?: [SecurityGroup];
+  vpc: Vpc;
+  securityGroups: [SecurityGroup];
 }
 
 export class SharedConstruct extends Construct implements SharedConstructOutputs {
@@ -44,18 +44,19 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public indexTable: dynamodb.Table;
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
-  public vpc?: Vpc;
-  public securityGroups?: [SecurityGroup];
+  public vpc: Vpc;
+  public securityGroups: [SecurityGroup];
 
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
-
+    console.log(props);
     const iamHelper = new IAMHelper(this, "iam-helper");
     let vpcConstruct;
+    vpcConstruct = new VpcConstruct(this, "vpc-construct");
 
-    if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
-      vpcConstruct = new VpcConstruct(this, "vpc-construct");
-    }
+    // if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
+    //   vpcConstruct = new VpcConstruct(this, "vpc-construct");
+    // }
 
     const groupNameAttr = {
       name: "groupName",
@@ -82,10 +83,12 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    if (vpcConstruct !== undefined) {
-      this.vpc = vpcConstruct.vpc;
-      this.securityGroups = [vpcConstruct.securityGroup];
-    }
+    // if (vpcConstruct !== undefined) {
+    //   this.vpc = vpcConstruct.vpc;
+    //   this.securityGroups = [vpcConstruct.securityGroup];
+    // }
+    this.vpc = vpcConstruct.vpc;
+    this.securityGroups = [vpcConstruct.securityGroup];
     this.iamHelper = iamHelper;
     this.chatbotTable = chatbotTable;
     this.indexTable = indexTable;
