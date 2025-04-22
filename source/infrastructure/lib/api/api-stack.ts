@@ -11,7 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Aws, Size, StackProps, CustomResource, Duration } from "aws-cdk-lib";
+import { Size, StackProps, Aws, Duration, CustomResource } from "aws-cdk-lib";
 import * as apigw from "aws-cdk-lib/aws-apigateway";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Code } from 'aws-cdk-lib/aws-lambda';
@@ -50,14 +50,11 @@ export interface ApiConstructOutputs {
   auth: apigw.RequestAuthorizer;
   genMethodOption: any;
   customAuthorizerLambda: LambdaFunction;
-  wsEndpoint: string;
 }
 
 export class ApiConstruct extends Construct implements ApiConstructOutputs {
   public apiEndpoint: string = "";
   public documentBucket: string = "";
-  public wsEndpoint: string = "";
-  public wsEndpointV2: string = "";
   public api: apigw.RestApi;
   public auth: apigw.RequestAuthorizer;
   public customAuthorizerLambda: LambdaFunction;
@@ -172,9 +169,6 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
     const etlObjTableName = props.knowledgeBaseStackOutputs.etlObjTableName;
     const etlObjIndexName = props.knowledgeBaseStackOutputs.etlObjIndexName;
 
-    const sqsStatement = props.chatStackOutputs.sqsStatement;
-    const messageQueue = props.chatStackOutputs.messageQueue;
-
     const lambdaLayers = new LambdaLayers(this);
     const sharedLayer = lambdaLayers.createSharedLayer();
     const intentionLayer = lambdaLayers.createIntentionLayer();
@@ -240,16 +234,14 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
     new apigw.Deployment(this, 'Deployment', { api: this.api });
     // Add delay after initial setup
     const initialDelay = this.addDeploymentDelay('Initial');
-
-
+ 
+ 
     const authDelay = this.addDeploymentDelay('Auth');
     authDelay.node.addDependency(initialDelay);
     new AuthHub(this, 'AuthHub', {
       solutionName: Constants.SOLUTION_NAME,
       apiGateway: this.api
     })
-
-
     this.customAuthorizerLambda = new LambdaFunction(this, "CustomAuthorizerLambda", {
       code: Code.fromAsset(join(__dirname, "../../../lambda/authorizer")),
       handler: "custom_authorizer.lambda_handler",
@@ -259,16 +251,12 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
       layers: [apiLambdaAuthorizerLayer],
       statements: [props.sharedConstructOutputs.iamHelper.logStatement],
     });
-
     this.customAuthorizerLambda.node.addDependency(authDelay);
-
 
     this.auth = new apigw.RequestAuthorizer(this, 'ApiAuthorizer', {
       handler: this.customAuthorizerLambda.function,
       identitySources: [apigw.IdentitySource.header('Authorization'), apigw.IdentitySource.header('Oidc-Info')],
     });
-
-
 
     // Create all API resources and their methods
     if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
@@ -380,7 +368,6 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
       );
       apiGetExecutionById.addMethod("PUT", new apigw.LambdaIntegration(executionManagementLambda.function), this.genMethodOption(this.api, this.auth, null));
 
-
       const apiUploadDoc = apiResourceStepFunction.addResource("kb-presigned-url");
       apiUploadDoc.addMethod(
         "POST",
@@ -401,7 +388,6 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
     if (props.config.chat.enabled) {
       const chatDelay = this.addDeploymentDelay('Chat');
       chatDelay.node.addDependency(initialDelay);
-
       const chatbotManagementApi = new ChatbotManagementApi(
         scope, "ChatbotManagementApi", {
         api: this.api,
@@ -469,28 +455,15 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         genMethodOption: this.genMethodOption,
       });
       modelApi.node.addDependency(intentionApi);
-
-      // Define the API Gateway Lambda Integration with proxy and no integration responses
-      const lambdaExecutorIntegration = new apigw.LambdaIntegration(
-        props.chatStackOutputs.lambdaOnlineMain,
-        { proxy: true },
-      );
-
-      // Define the API Gateway Method
-      const apiResourceLLM = this.api.root.addResource("llm");
-      apiResourceLLM.addMethod("POST", lambdaExecutorIntegration, this.genMethodOption(this.api, this.auth, null));
-      apiResourceLLM.node.addDependency(modelApi);
     }
 
     // Final deployment and stage
     const finalDelay = this.addDeploymentDelay('FinalDeployment');
-
     const deployment = new apigw.Deployment(this, 'APIDeployment', {
       api: this.api,
     });
     deployment.node.addDependency(finalDelay);
 
-    // Set final outputs
     this.apiEndpoint = this.api.url;
     this.documentBucket = s3Bucket.bucketName;
   }
