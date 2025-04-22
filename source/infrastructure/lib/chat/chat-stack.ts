@@ -11,25 +11,28 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { StackProps, NestedStack } from "aws-cdk-lib";
+import { StackProps, NestedStack, Duration } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
-import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+// import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { Construct } from "constructs";
 import { join } from "path";
 
 import { Constants } from "../shared/constants";
-import { LambdaLayers } from "../shared/lambda-layers";
 import { QueueConstruct } from "./chat-queue";
 import { IAMHelper } from "../shared/iam-helper";
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as logs from "aws-cdk-lib/aws-logs";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
+// import * as appscaling from "aws-cdk-lib/aws-applicationautoscaling";
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { SystemConfig } from "../shared/types";
 import { SharedConstructOutputs } from "../shared/shared-construct";
 import { ModelConstructOutputs } from "../model/model-construct";
 import { ChatTablesConstruct } from "./chat-tables";
-import { LambdaFunction } from "../shared/lambda-helper";
-import { Runtime, Code, Function } from "aws-cdk-lib/aws-lambda";
 import { ConnectConstruct } from "../connect/connect-construct";
+// import * as ecs_patterns from "aws-cdk-lib/aws-ecs-patterns";
 
 
 interface ChatStackProps extends StackProps {
@@ -47,7 +50,6 @@ export interface ChatStackOutputs {
   sqsStatement: iam.PolicyStatement;
   messageQueue: Queue;
   dlq: Queue;
-  lambdaOnlineMain: Function;
 }
 
 export class ChatStack extends NestedStack implements ChatStackOutputs {
@@ -60,11 +62,14 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
   public sqsStatement: iam.PolicyStatement;
   public messageQueue: Queue;
   public dlq: Queue;
-  public lambdaOnlineMain: Function;
 
   private iamHelper: IAMHelper;
   private indexTableName: string;
   private modelTableName: string;
+  // public ecsService: ecs.FargateService;
+  // public loadBalancer: elbv2.ApplicationLoadBalancer;
+  // public listener: elbv2.ApplicationListener;
+  public container: ecs.ContainerDefinition;
 
   constructor(scope: Construct, id: string, props: ChatStackProps) {
     super(scope, id);
@@ -91,12 +96,6 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     this.messageQueue = chatQueueConstruct.messageQueue;
     this.dlq = chatQueueConstruct.dlq;
 
-    const lambdaLayers = new LambdaLayers(this);
-    const apiLambdaOnlineSourceLayer = lambdaLayers.createOnlineMainLayer();
-    // const sharedLayer = lambdaLayers.createSharedLayer();
-    // const modelLayer = lambdaLayers.createModelDeploymentLayer();
-
-
     const openAiKey = new secretsmanager.Secret(this, "OpenAiSecret", {
       generateSecretString: {
         secretStringTemplate: JSON.stringify({ key: "ReplaceItWithRealKey" }),
@@ -111,21 +110,57 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     } else {
       customDomainSecretArn = "";
     }
-    const lambdaOnlineMain = new LambdaFunction(this, "lambdaOnlineMain", {
-      runtime: Runtime.PYTHON_3_12,
-      handler: "lambda_main.main.lambda_handler",
-      code: Code.fromCustomCommand(
-        "/tmp/online_lambda_function_codes",
-        ['bash', '-c', [
-          "mkdir -p /tmp/online_lambda_function_codes",
-          `cp -Lr ${join(__dirname, "../../../lambda/online/*")} /tmp/online_lambda_function_codes`,
-          `cp -Lr ${join(__dirname, "../../../lambda/shared")} /tmp/online_lambda_function_codes/`,
-        ].join(' && ')
-        ]
-      ),
-      memorySize: 4096,
-      vpc: vpc,
-      securityGroups: securityGroups,
+
+    const cluster = new ecs.Cluster(this, 'ChatCluster', {
+      vpc,
+    });
+
+    const taskRole = new iam.Role(this, 'ChatTaskRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+    });
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        "es:ESHttpGet",
+        "es:ESHttpPut",
+        "es:ESHttpPost",
+        "es:ESHttpHead",
+        "es:DescribeDomain",
+        "secretsmanager:GetSecretValue",
+        "bedrock:*",
+        "lambda:InvokeFunction",
+        "secretmanager:GetSecretValue",
+        "cases:*",
+        "connect:*",
+        "cloudformation:Describe*",
+        "cloudformation:EstimateTemplateCost",
+        "cloudformation:Get*",
+        "cloudformation:List*",
+        "cloudformation:ValidateTemplate",
+        "cloudformation:Detect*",
+      ],
+      effect: iam.Effect.ALLOW,
+      resources: ["*"],
+    }));
+
+    taskRole.addToPolicy(this.sqsStatement);
+    taskRole.addToPolicy(this.iamHelper.s3Statement);
+    taskRole.addToPolicy(this.iamHelper.endpointStatement);
+    taskRole.addToPolicy(this.iamHelper.dynamodbStatement);
+    openAiKey.grantRead(taskRole);
+
+    const taskDefinition = new ecs.FargateTaskDefinition(this, 'ChatTaskDefinition', {
+      memoryLimitMiB: 4096,
+      cpu: 1024,
+      taskRole,
+    });
+
+    // Add container to task definition with placeholder for WebSocket URL
+    this.container = taskDefinition.addContainer('ChatContainer', {
+      image: ecs.ContainerImage.fromAsset(join(__dirname, '../../../lambda/online'), {
+        buildArgs: {
+          REQUIREMENTS_FILE: 'requirements.txt',
+        },
+      }),
       environment: {
         AOS_ENDPOINT: domainEndpoint,
         AOS_SECRET_ARN: customDomainSecretArn,
@@ -147,55 +182,88 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
         KNOWLEDGE_BASE_TYPE: JSON.stringify(props.config.knowledgeBase.knowledgeBaseType || {}),
         BEDROCK_REGION: props.config.chat.bedrockRegion,
         BEDROCK_AWS_ACCESS_KEY_ID: props.config.chat.bedrockAk || "",
-        BEDROCK_AWS_SECRET_ACCESS_KEY: props.config.chat.bedrockSk || ""
+        BEDROCK_AWS_SECRET_ACCESS_KEY: props.config.chat.bedrockSk || "",
       },
-      layers: [apiLambdaOnlineSourceLayer],
+      logging: ecs.LogDrivers.awsLogs({
+        streamPrefix: 'ChatService',
+        logRetention: logs.RetentionDays.ONE_MONTH,
+      }),
+      portMappings: [
+        {
+          containerPort: 80,
+          protocol: ecs.Protocol.TCP,
+        },
+      ],
     });
-    this.lambdaOnlineMain = lambdaOnlineMain.function;
 
-    this.lambdaOnlineMain.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "es:ESHttpGet",
-          "es:ESHttpPut",
-          "es:ESHttpPost",
-          "es:ESHttpHead",
-          "es:DescribeDomain",
-          "secretsmanager:GetSecretValue",
-          "bedrock:*",
-          "lambda:InvokeFunction",
-          "secretmanager:GetSecretValue",
-          "cases:*",
-          "connect:*",
-        ],
-        effect: iam.Effect.ALLOW,
-        resources: ["*"],
-      }),
-    );
+    // // Create Application Load Balancer
+    // this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'ChatLoadBalancer', {
+    //   vpc: vpc!,
+    //   internetFacing: false,
+    //   vpcSubnets: vpc?.selectSubnets({
+    //     subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+    //   }) ?? { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    // });
 
-    this.lambdaOnlineMain.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "cloudformation:Describe*",
-          "cloudformation:EstimateTemplateCost",
-          "cloudformation:Get*",
-          "cloudformation:List*",
-          "cloudformation:ValidateTemplate",
-          "cloudformation:Detect*"
-        ],
-        effect: iam.Effect.ALLOW,
-        resources: ["*"],
-      }),
-    );
+    // // Create ALB listener
+    // this.listener = this.loadBalancer.addListener('ChatListener', {
+    //   port: 80,
+    //   protocol: elbv2.ApplicationProtocol.HTTP,
+    // });
 
-    this.lambdaOnlineMain.addToRolePolicy(this.sqsStatement);
-    this.lambdaOnlineMain.addEventSource(
-      new lambdaEventSources.SqsEventSource(this.messageQueue, { batchSize: 1 }),
-    );
-    this.lambdaOnlineMain.addToRolePolicy(this.iamHelper.s3Statement);
-    this.lambdaOnlineMain.addToRolePolicy(this.iamHelper.endpointStatement);
-    this.lambdaOnlineMain.addToRolePolicy(this.iamHelper.dynamodbStatement);
-    openAiKey.grantRead(this.lambdaOnlineMain);
+    // // Create target group
+    // const targetGroup = this.listener.addTargets('ChatTargetGroup', {
+    //   port: 80,
+    //   protocol: elbv2.ApplicationProtocol.HTTP,
+    //   targets: [],
+    //   healthCheck: {
+    //     path: '/health',
+    //     healthyHttpCodes: '200',
+    //     interval: Duration.seconds(60),
+    //     timeout: Duration.seconds(5),
+    //   },
+    //   deregistrationDelay: Duration.seconds(30),
+    // });
+
+    // // Create Fargate service
+    // this.ecsService = new ecs.FargateService(this, 'ChatService', {
+    //   cluster,
+    //   taskDefinition,
+    //   desiredCount: 1,
+    //   securityGroups,
+    //   vpcSubnets: vpc?.selectSubnets({
+    //     subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+    //   }) ?? { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    //   assignPublicIp: false,
+    //   capacityProviderStrategies: [
+    //     {
+    //       capacityProvider: 'FARGATE',
+    //       weight: 1,
+    //     },
+    //   ],
+    //   // Enable service discovery for VPC communication
+    //   enableExecuteCommand: true,
+    //   circuitBreaker: { rollback: true },
+    // });
+
+    // // Add container to target group
+    // targetGroup.addTarget(this.ecsService);
+
+
+    // // Add SQS queue as event source
+    // this.ecsService.autoScaleTaskCount({
+    //   minCapacity: 1,
+    //   maxCapacity: 10,
+    // }).scaleOnMetric('QueueMessagesVisible', {
+    //   metric: this.messageQueue.metricApproximateNumberOfMessagesVisible(),
+    //   scalingSteps: [
+    //     { upper: 0, change: -1 },
+    //     { lower: 1, change: +1 },
+    //     { lower: 10, change: +2 },
+    //   ],
+    //   adjustmentType: appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
+    // });
+
 
     if (props.config.chat.amazonConnect.enabled) {
       new ConnectConstruct(this, "connect-construct");
