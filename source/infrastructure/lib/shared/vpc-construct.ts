@@ -28,6 +28,18 @@ export class VpcConstruct extends Construct {
     this.vpc = new ec2.Vpc(this, "LLM-VPC", {
       ipAddresses: ec2.IpAddresses.cidr("10.100.0.0/16"),
       maxAzs: 2,
+      subnetConfiguration: [
+        {
+          cidrMask: 24,
+          name: 'Public',
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
+        {
+          cidrMask: 24,
+          name: 'Private',
+          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+        }
+      ]
     });
 
     this.privateSubnets = this.vpc.privateSubnets;

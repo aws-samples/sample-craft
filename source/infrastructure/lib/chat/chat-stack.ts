@@ -154,7 +154,6 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
       taskRole,
     });
 
-    // Add container to task definition with placeholder for WebSocket URL
     this.container = taskDefinition.addContainer('ChatContainer', {
       image: ecs.ContainerImage.fromAsset(join(__dirname, '../../../lambda/online'), {
         buildArgs: {
@@ -198,7 +197,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
 
     this.loadBalancer = new elbv2.ApplicationLoadBalancer(this, 'ChatLoadBalancer', {
       vpc: vpc,
-      internetFacing: false,
+      internetFacing: true,
     });
 
     // Create Fargate service
@@ -207,6 +206,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
       cluster: cluster,
       taskDefinition: taskDefinition,
       desiredCount: 1,
+      assignPublicIp: true,
     });
 
 
