@@ -20,7 +20,7 @@ import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
 import { DynamoDBTable } from "./table";
 import { VpcConstruct } from "./vpc-construct";
-import { Vpc, SecurityGroup } from 'aws-cdk-lib/aws-ec2';
+import { SecurityGroup, IVpc, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
 dotenv.config();
 
@@ -34,8 +34,11 @@ export interface SharedConstructOutputs {
   indexTable: dynamodb.Table;
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
-  vpc?: Vpc;
-  securityGroups?: [SecurityGroup];
+  vpc?: IVpc;
+  privateSubnets?: ISubnet[];
+  securityGroups?: SecurityGroup[];
+  useOpensearchInVpc: boolean;
+  customDomainSecretArn: string;
 }
 
 export class SharedConstruct extends Construct implements SharedConstructOutputs {
@@ -44,18 +47,20 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public indexTable: dynamodb.Table;
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
-  public vpc?: Vpc;
-  public securityGroups?: [SecurityGroup];
-
+  public vpc?: IVpc;
+  public privateSubnets?: ISubnet[];
+  public securityGroups?: SecurityGroup[];
+  public useOpensearchInVpc: boolean;
+  public customDomainSecretArn: string;
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
 
     const iamHelper = new IAMHelper(this, "iam-helper");
     let vpcConstruct;
 
-    if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
-      vpcConstruct = new VpcConstruct(this, "vpc-construct");
-    }
+    vpcConstruct = new VpcConstruct(this, "vpc-construct", {
+      config: props.config,
+    });
 
     const groupNameAttr = {
       name: "groupName",
@@ -82,10 +87,17 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    if (vpcConstruct !== undefined) {
-      this.vpc = vpcConstruct.vpc;
-      this.securityGroups = [vpcConstruct.securityGroup];
+    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
+      this.useOpensearchInVpc = false;
+      this.customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
+    } else {
+      this.useOpensearchInVpc = true;
+      this.customDomainSecretArn = "";
     }
+
+    this.vpc = vpcConstruct.vpc;
+    this.privateSubnets = vpcConstruct.privateSubnets;
+    this.securityGroups = vpcConstruct.securityGroups;
     this.iamHelper = iamHelper;
     this.chatbotTable = chatbotTable;
     this.indexTable = indexTable;

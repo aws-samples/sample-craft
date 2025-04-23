@@ -165,6 +165,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
 
     this.iamHelper = props.sharedConstructOutputs.iamHelper;
     const vpc = props.sharedConstructOutputs.vpc;
+    const privateSubnets = props.sharedConstructOutputs.privateSubnets;
     const securityGroups = props.sharedConstructOutputs.securityGroups;
     const domainEndpoint = props.knowledgeBaseStackOutputs.aosDomainEndpoint;
     const sessionsTableName = props.chatStackOutputs.sessionsTableName;
@@ -299,12 +300,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         statements: [this.iamHelper.s3Statement],
       });
 
-      let customDomainSecretArn;
-      if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-        customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-      } else {
-        customDomainSecretArn = "";
-      }
+      const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
 
       const kbSearchLambda = new LambdaFunction(this, "KbSearchLambda", {
         code: Code.fromCustomCommand(
@@ -317,6 +313,9 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
           ]
         ),
         handler: "knowledge_base_search.lambda_handler",
+        vpc: vpc,
+        privateSubnets: privateSubnets,
+        securityGroups: securityGroups,
         environment: {
           AOS_ENDPOINT: domainEndpoint,
           AOS_SECRET_ARN: customDomainSecretArn,
@@ -445,6 +444,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         api: this.api,
         auth: this.auth,
         vpc: vpc!,
+        privateSubnets: privateSubnets!,
         securityGroups: securityGroups!,
         intentionTableName: props.chatStackOutputs.intentionTableName,
         indexTable: props.sharedConstructOutputs.indexTable.tableName,
@@ -458,6 +458,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         intentionLayer: intentionLayer,
         iamHelper: this.iamHelper,
         genMethodOption: this.genMethodOption,
+        sharedConstructOutputs: props.sharedConstructOutputs,
       });
       intentionApi.node.addDependency(promptApi);
 

@@ -75,6 +75,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
 
     this.iamHelper = props.sharedConstructOutputs.iamHelper;
     const vpc = props.sharedConstructOutputs.vpc;
+    const privateSubnets = props.sharedConstructOutputs.privateSubnets;
     const securityGroups = props.sharedConstructOutputs.securityGroups;
     const domainEndpoint = props.domainEndpoint ?? '';
 
@@ -109,12 +110,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     });
 
     // Add custom domain secret arn to environment variables
-    let customDomainSecretArn;
-    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-      customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-    } else {
-      customDomainSecretArn = "";
-    }
+    const customDomainSecretArn = props.sharedConstructOutputs.customDomainSecretArn;
     const lambdaOnlineMain = new LambdaFunction(this, "lambdaOnlineMain", {
       runtime: Runtime.PYTHON_3_12,
       handler: "lambda_main.main.lambda_handler",
@@ -129,6 +125,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
       ),
       memorySize: 4096,
       vpc: vpc,
+      privateSubnets: privateSubnets,
       securityGroups: securityGroups,
       environment: {
         AOS_ENDPOINT: domainEndpoint,
