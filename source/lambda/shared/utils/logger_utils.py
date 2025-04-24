@@ -73,5 +73,11 @@ def llm_messages_print_decorator(fn):
             print_llm_messages(args)
         if kwargs:
             print_llm_messages(kwargs)
-        return fn(*args, **kwargs)
+        ret = fn(*args, **kwargs)
+        print_llm_messages(ret)
+        return ret 
+    
+    if getattr(fn, '_is_decorated',False):
+        return fn
+    _inner._is_decorated = True
     return _inner
