@@ -34,7 +34,6 @@ from shared.langchain_integration.retrievers import (
 )
 from shared.langchain_integration.tools import ToolManager
 from shared.utils.lambda_invoke_utils import (
-    is_running_local,
     node_monitor_wrapper,
     send_trace,
 )
@@ -716,11 +715,6 @@ def common_entry(event_body):
     global app
     if app is None:
         app = build_graph(ChatbotState)
-
-    # debuging
-    if is_running_local():
-        with open("common_entry_workflow.png", "wb") as f:
-            f.write(app.get_graph().draw_mermaid_png())
 
     ################################################################################
     # prepare inputs and invoke graph

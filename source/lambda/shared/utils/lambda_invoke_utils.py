@@ -268,10 +268,6 @@ def chatbot_lambda_call_wrapper(fn):
     return inner
 
 
-def is_running_local():
-    return _is_current_invoke_local
-
-
 def send_trace(
     trace_info: str,
     current_stream_use: Union[bool, None] = None,
@@ -300,8 +296,8 @@ def send_trace(
                 },
                 ws_connection_id=ws_connection_id,
             )
-            if not is_running_local():
-                logger.info(trace_info)
+            
+            logger.info(trace_info)
         else:
             logger.info(trace_info)
 

@@ -11,10 +11,6 @@ logger_lock = threading.Lock()
 
 class CloudStreamHandler(logging.StreamHandler):
     def emit(self, record):
-        from .lambda_invoke_utils import is_running_local
-        if not is_running_local:
-            # enable multiline as one message in cloudwatch
-            record.msg = record.msg.replace("\n", "\r")
         return super().emit(record)
 
 

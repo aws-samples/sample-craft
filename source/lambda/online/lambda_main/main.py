@@ -9,7 +9,6 @@ from shared.constant import EntryType, ParamType, Threshold,WSConnectionSignal
 from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
 from shared.utils.lambda_invoke_utils import (
     chatbot_lambda_call_wrapper,
-    is_running_local,
     send_trace
 )
 from shared.utils.logger_utils import get_logger
@@ -329,13 +328,8 @@ def default_event_handler(event_body: dict, context: dict, entry_executor):
     event_body["kb_enabled"] = kb_enabled
     event_body["kb_type"] = kb_type
 
-    # Show debug info directly in local mode
-    if is_running_local():
-        response: dict = entry_executor(event_body)
-        return response
-    else:
-        response: dict = entry_executor(event_body)
-        return response
+    response: dict = entry_executor(event_body)
+    return response
 
 
 @chatbot_lambda_call_wrapper
