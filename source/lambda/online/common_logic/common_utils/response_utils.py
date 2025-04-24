@@ -93,7 +93,7 @@ def stream_response(event_body: dict, response: dict):
             },
             ws_connection_id=ws_connection_id,
         )
-
+        ttft_start_time = time.time()
         for i, chunk in enumerate(answer):
             # Check for stop signal before sending each chunk
             if check_stop_signal(ws_connection_id):
@@ -116,6 +116,9 @@ def stream_response(event_body: dict, response: dict):
                 first_token_time = time.time()
                 logger.info(
                     f"{custom_message_id} running time of first token whole {entry_type} entry: {first_token_time-request_timestamp}s"
+                )
+                logger.info(
+                    f"{custom_message_id} running time of first token TTFT: {first_token_time-ttft_start_time}s"
                 )
 
             send_to_ws_client(

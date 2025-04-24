@@ -54,12 +54,14 @@ class ChatModelBase(ModeMixins, ModelBase):
             f"{cls.model_id_to_class_name(model_id)}",
             (cls,),
             {
-                "model_id": model_id,
-                "model": config.model,
-                "default_model_kwargs": config.default_model_kwargs,
-                "enable_any_tool_choice": config.enable_any_tool_choice,
-                "enable_prefill": config.enable_prefill,
-                "is_reasoning_model": config.is_reasoning_model,
+                **config.__dict__
+                # "model_id": model_id,
+                # "model": config.model,
+                # "default_model_kwargs": config.default_model_kwargs,
+                # "enable_any_tool_choice": config.enable_any_tool_choice,
+                # "enable_prefill": config.enable_prefill,
+                # "is_reasoning_model": config.is_reasoning_model,
+                # "support_prompt_cache":config.support_prompt_cache
             },
         )
         return model_class

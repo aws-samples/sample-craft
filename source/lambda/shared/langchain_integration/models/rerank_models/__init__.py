@@ -24,8 +24,9 @@ class RerankModelBase(ModelBase):
             f"{cls.model_id_to_class_name(model_id)}",
             (cls,),
             {
-                "model_id": model_id,
-                "default_model_kwargs": config.default_model_kwargs,
+                **config.__dict__
+                # "model_id": model_id,
+                # "default_model_kwargs": config.default_model_kwargs,
             },
         )
         return model_class
