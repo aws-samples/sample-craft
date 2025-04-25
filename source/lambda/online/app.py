@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
 from lambda_main.main import lambda_handler
 import json
+import nest_asyncio
+nest_asyncio.apply()
 
 app = FastAPI()
 

@@ -1,6 +1,7 @@
 import json
 import time
 import traceback
+import types
 
 from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
 from shared.constant import StreamMessageType
@@ -47,7 +48,9 @@ def write_chat_history_to_ddb(
 def api_response(event_body: dict, response: dict):
     ddb_history_obj = event_body["ddb_history_obj"]
     answer = response["answer"]
-    if not isinstance(answer, str):
+    if isinstance(answer, types.GeneratorType):
+        answer = ''.join(answer)
+    elif not isinstance(answer, str):
         answer = json.dumps(answer, ensure_ascii=False)
 
     write_chat_history_to_ddb(

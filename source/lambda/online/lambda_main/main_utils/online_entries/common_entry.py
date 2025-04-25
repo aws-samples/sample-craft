@@ -178,9 +178,11 @@ def intention_detection(state: ChatbotState):
     qq_retriever = MergerRetriever(retrievers=qq_retrievers)
 
     logger.info("##### QQ match running")
-    qq_retrievered: List[Document] = run_coroutine_with_new_el(
-        qq_retriever.ainvoke(state["query"])
-    )
+    qq_retrievered = run_coroutine_with_new_el(qq_retriever.ainvoke(state["query"]))
+    # if isinstance(qq_retrievered_task, asyncio.Task):
+    #     qq_retrievered = asyncio.get_event_loop().run_until_complete(qq_retrievered_task)
+    # else:
+    #     qq_retrievered = qq_retrievered_task
 
     qq_match_results = []  # used in rag tool
     qq_match_threshold = qq_match_config["qq_match_threshold"]

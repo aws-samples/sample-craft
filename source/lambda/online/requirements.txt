@@ -7,8 +7,9 @@ pydantic==2.11.1
 datamodel-code-generator==0.26.2
 langchain-openai==0.3.7
 cachetools==5.5.2
-langchain-mcp-adapters==0.0.8
+langchain-mcp-adapters==0.0.9
 mcp==1.6.0
 fastapi==0.115.12
 uvicorn==0.34.2
 sse-starlette==2.2.1
+nest-asyncio==1.6.0
