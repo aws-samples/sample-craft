@@ -5,7 +5,6 @@ from langchain.schema.runnable import (
 
 from shared.utils.logger_utils import get_logger
 from shared.utils.langchain_utils import chain_logger
-from shared.utils.lambda_invoke_utils import invoke_lambda, chatbot_lambda_call_wrapper, send_trace
 from shared.constant import LLMTaskType
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 
@@ -80,7 +79,6 @@ def conversation_query_rewrite(query: str, chat_history: list, message_id: str, 
     return rewrite_query
 
 
-@chatbot_lambda_call_wrapper
 def lambda_handler(state: dict, context=None):
     query = state.get("query", "")
     chat_history = state.get("chat_history", [])

@@ -12,7 +12,6 @@ from lambda_retriever.utils.aos_retrievers import (
     QueryDocumentKNNRetriever,
     QueryQuestionRetriever,
 )
-from common_logic.common_utils.lambda_invoke_utils import chatbot_lambda_call_wrapper
 import boto3
 import sys
 import logging
@@ -104,7 +103,6 @@ def get_custom_retrievers(retriever_config, retriever_type="qd"):
     return retriever_dict[retriever_type](retriever_config)
 
 
-@chatbot_lambda_call_wrapper
 def lambda_handler(event, context=None):
     event_body = event
     retriever_list = []

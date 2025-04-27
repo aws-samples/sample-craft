@@ -45,7 +45,7 @@ from shared.utils.monitor_utils import (
 )
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 from shared.utils.python_utils import add_messages, update_nest_dict
-from shared.utils.asyncio_utils import run_coroutine_with_new_el
+# from shared.utils.asyncio_utils import run_coroutine_with_new_el
 logger = get_logger("common_entry")
 
 
@@ -196,7 +196,7 @@ def intention_detection(state: ChatbotState):
             send_trace(
                 f"\n\n**similar query found**\n\n{doc_md}",
                 state["stream"],
-                state["ws_connection_id"],
+                None, 
                 state["enable_trace"],
             )
             query_content = doc.metadata["answer"]
@@ -261,9 +261,7 @@ def intention_detection(state: ChatbotState):
         qd_retriever = MergerRetriever(retrievers=qd_retrievers)
 
         logger.info("##### Intention QD running")
-        qd_retrievered: List[Document] = run_coroutine_with_new_el(
-            qd_retriever.ainvoke(state["query"])
-        )
+        qd_retrievered: List[Document] = qd_retriever.invoke(state["query"])
         # output = retrieve_fn(retriever_params)
 
         info_to_log = []
@@ -281,13 +279,13 @@ def intention_detection(state: ChatbotState):
         send_trace(
             f"all knowledge retrieved:\n{chr(10).join(info_to_log)}",
             state["stream"],
-            state["ws_connection_id"],
+            None,
             state["enable_trace"],
         )
     send_trace(
         f"{markdown_table}",
         state["stream"],
-        state["ws_connection_id"],
+        None,
         state["enable_trace"],
     )
 
@@ -412,7 +410,7 @@ def agent(state: ChatbotState):
     send_trace(
         f"\n\n**agent_current_output:** \n{agent_message}\n\n",
         state["stream"],
-        state["ws_connection_id"],
+        None,
     )
     # Case 2: Agent decides no more tools needed
     if not agent_message.tool_calls:
@@ -736,7 +734,7 @@ def common_entry(event_body):
     )
     stream = event_body["stream"]
     message_id = event_body["custom_message_id"]
-    ws_connection_id = event_body["ws_connection_id"]
+    # ws_connection_id = event_body["ws_connection_id"]
     enable_trace = chatbot_config["enable_trace"]
     agent_config = event_body["chatbot_config"]["agent_config"]
     # rag_config = event_body["chatbot_config"]["rag_config"]
@@ -779,7 +777,6 @@ def common_entry(event_body):
             "message_id": message_id,
             "chat_history": chat_history,
             "agent_tool_history": [],
-            "ws_connection_id": ws_connection_id,
             "debug_infos": {},
             "extra_response": {},
             "qq_match_results": [],
@@ -790,7 +787,7 @@ def common_entry(event_body):
         },
         config={"recursion_limit": 20},
     )
-    clear_stop_signal(ws_connection_id)
+    # clear_stop_signal(ws_connection_id)
     return response["app_response"]
 
 

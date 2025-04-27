@@ -16,7 +16,7 @@ from langchain.retrievers.merger_retriever import MergerRetriever
 from shared.langchain_integration.models.chat_models import (
     ReasonModelResult,ReasonModelStreamResult
 )
-from shared.utils.asyncio_utils import run_coroutine_with_new_el
+# from shared.utils.asyncio_utils import run_coroutine_with_new_el
 
 logger = get_logger(__name__)
 
@@ -148,9 +148,7 @@ def rag_tool(retriever_config: dict, query=None):
     # qd_retriever = OpensearchHybridQueryDocumentRetriever.from_config(
     #     **retriever_params
     # )
-    retrieved_contexts:List[Document] = run_coroutine_with_new_el(
-        qd_retriever.ainvoke(retriever_params["query"])
-    )
+    retrieved_contexts:List[Document] = qd_retriever.invoke(retriever_params["query"])
 
     # output = retrieve_fn(retriever_params)
     # top_k = retriever_config.get("top_k", Threshold.TOP_K_RETRIEVALS)

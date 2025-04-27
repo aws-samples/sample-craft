@@ -609,7 +609,7 @@ class QueryDocumentKNNRetriever(BaseRetriever):
                     if doc:
                         result["doc"] = doc
             else:
-                response_list = asyncio.run(
+                response_list = asyncio.get_event_loop().run_until_complete(
                     self.__spawn_task(aos_hits, context_size))
                 for context, result in zip(response_list, results):
                     result["doc"] = "\n".join(
@@ -773,7 +773,7 @@ class QueryDocumentBM25Retriever(BaseRetriever):
                 if doc:
                     result["doc"] = doc
         else:
-            response_list = asyncio.run(
+            response_list = asyncio.get_event_loop().run_until_complete(
                 self.__spawn_task(aos_hits, context_size))
             for context, result in zip(response_list, results):
                 result["doc"] = "\n".join(

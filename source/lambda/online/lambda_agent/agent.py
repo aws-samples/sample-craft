@@ -3,7 +3,6 @@ from langchain.schema.runnable import (
 )
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 from shared.utils.logger_utils import get_logger
-from shared.utils.lambda_invoke_utils import invoke_lambda, chatbot_lambda_call_wrapper
 from shared.constant import LLMTaskType
 from functions import get_tool_by_name
 
@@ -62,7 +61,6 @@ def tool_calling(state: dict):
     }
 
 
-@chatbot_lambda_call_wrapper
 def lambda_handler(state: dict, context=None):
     output = tool_calling(state)
     return output

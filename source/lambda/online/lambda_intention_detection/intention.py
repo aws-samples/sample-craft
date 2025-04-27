@@ -5,10 +5,9 @@ import asyncio
 from typing import List
 from langchain_core.documents import Document
 from shared.utils.logger_utils import get_logger
-from shared.utils.lambda_invoke_utils import chatbot_lambda_call_wrapper
 from shared.langchain_integration.retrievers import OpensearchHybridQueryQuestionRetriever
 from langchain.retrievers.merger_retriever import MergerRetriever
-from shared.utils.asyncio_utils import run_coroutine_with_new_el
+# from shared.utils.asyncio_utils import run_coroutine_with_new_el
 logger = get_logger("intention")
 kb_enabled = os.environ["KNOWLEDGE_BASE_ENABLED"].lower() == "true"
 kb_type = json.loads(os.environ["KNOWLEDGE_BASE_TYPE"])
@@ -42,7 +41,17 @@ def get_intention_results(query: str, intention_config: dict, intent_threshold: 
         }  
     ) for retriver_config in intention_config['retrievers']
     ])
-    intention_retrievered:List[Document] = run_coroutine_with_new_el(intention_retriever.ainvoke(event_body['query']))
+    try:
+        # Set a reasonable timeout for the retrieval operation
+        intention_retrievered:List[Document] = intention_retriever.invoke(event_body['query'])
+    except TimeoutError as e:
+        logger.warning(f"Intention retrieval timed out: {e}")
+        # Return empty results to continue processing
+        intention_retrievered = []
+    except Exception as e:
+        logger.error(f"Error during intention retrieval: {e}")
+        # Return empty results to continue processing
+        intention_retrievered = []
     # res = retrieve_fn(event_body)
 
     if not intention_retrievered:
@@ -64,7 +73,6 @@ def get_intention_results(query: str, intention_config: dict, intent_threshold: 
     return intent_fewshot_examples, True
 
 
-@chatbot_lambda_call_wrapper
 def lambda_handler(state: dict, context=None):
     intention_config = state["chatbot_config"].get("intention_config", {})
     query_key = intention_config.get(
