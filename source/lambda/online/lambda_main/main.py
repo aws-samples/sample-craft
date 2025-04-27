@@ -179,10 +179,10 @@ def assemble_event_body(event_body: dict, context: dict):
     """
     body = {}
     request_timestamp = int(time.time())
-    body["request_timestamp"] = str(request_timestamp)
+    body["request_timestamp"] = request_timestamp
     body["client_type"] = event_body.get("client_type", "default_client_type")
     body["session_id"] = event_body.get(
-        "session_id", f"session_{request_timestamp}")
+        "session_id", f"session_str({request_timestamp})")
     body["user_id"] = event_body.get("user_id", "default_user_id")
     body["message_id"] = event_body.get("custom_message_id", str(uuid.uuid4()))
     body["group_name"] = event_body.get(

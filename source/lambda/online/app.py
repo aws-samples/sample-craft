@@ -93,12 +93,21 @@ async def handle_llm_request(request: Request):
     async def event_generator(event_body: dict):
         try:
             event_body = default_event_handler(event_body, {})
-            async for chunk in entry_executor(event_body):
-                if isinstance(chunk, dict):
-                    yield {
-                        "event": "message",
-                        "data": json.dumps(chunk)
-                    }
+            result = entry_executor(event_body)
+            if hasattr(result, '__aiter__'):
+                print("has aiter")
+                async for chunk in result:
+                    if isinstance(chunk, dict):
+                        yield {
+                            "event": "message",
+                            "data": json.dumps(chunk)
+                        }
+            else:
+                print("has not aiter, it is a string")
+                yield {
+                    "event": "message",
+                    "data": json.dumps({"answer": result, "extra_response": {}})
+                }
             yield {
                 "event": "complete",
                 "data": json.dumps({"status": "completed"})

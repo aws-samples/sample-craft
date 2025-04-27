@@ -52,11 +52,12 @@ def load_ws_client(websocket_url):
     return ws_client
 
 
-def send_to_ws_client(message: dict, ws_connection_id):
-    ws_client.post_to_connection(
-        ConnectionId=ws_connection_id,
-        Data=json.dumps(message, cls=JSONEncoder).encode("utf-8"),
-    )
+def send_to_ws_client(message: dict, ws_connection_id=None):
+    pass
+    # ws_client.post_to_connection(
+    #     ConnectionId=ws_connection_id,
+    #     Data=json.dumps(message, cls=JSONEncoder).encode("utf-8"),
+    # )
 
 
 class StopSignalManager:

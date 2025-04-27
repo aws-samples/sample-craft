@@ -45,7 +45,7 @@ from shared.utils.monitor_utils import (
 )
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 from shared.utils.python_utils import add_messages, update_nest_dict
-# from shared.utils.asyncio_utils import run_coroutine_with_new_el
+from shared.utils.asyncio_utils import run_coroutine_with_new_el
 logger = get_logger("common_entry")
 
 
@@ -261,7 +261,9 @@ def intention_detection(state: ChatbotState):
         qd_retriever = MergerRetriever(retrievers=qd_retrievers)
 
         logger.info("##### Intention QD running")
-        qd_retrievered: List[Document] = qd_retriever.invoke(state["query"])
+        qd_retrievered: List[Document] = run_coroutine_with_new_el(
+            qd_retriever.ainvoke(state["query"])
+        )
         # output = retrieve_fn(retriever_params)
 
         info_to_log = []

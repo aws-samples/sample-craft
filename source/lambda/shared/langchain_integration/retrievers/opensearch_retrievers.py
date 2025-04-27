@@ -308,11 +308,16 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
         run_manager: AsyncCallbackManagerForRetrieverRun,
         **kwargs,
     ) -> List[Document]:
-        return asyncio.get_event_loop().run_until_complete(
+        # return asyncio.to_thread(
+        #     self._aget_relevant_documents(
+        #         query, run_manager=run_manager, **kwargs
+        #     )
+        # )
+        return asyncio.run(
             self._aget_relevant_documents(
                 query, run_manager=run_manager, **kwargs
             )
-        )
+        )    
 
 
 class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
