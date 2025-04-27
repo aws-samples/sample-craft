@@ -8,32 +8,43 @@ services:
     ports:
       - "8000:80"
     volumes:
-      - .:/app
+      # Mount only specific directories instead of the entire app directory
+      # This prevents overriding installed Python packages
+      - ./shared:/app/shared
+      - ./lambda_agent:/app/lambda_agent
+      - ./lambda_intention_detection:/app/lambda_intention_detection
+      - ./lambda_main:/app/lambda_main
+      - ./lambda_query_preprocess:/app/lambda_query_preprocess
+      - ./common_logic:/app/common_logic
+      - ./app.py:/app/app.py
+      - ~/.aws:/root/.aws:ro
     environment:
       - AWS_REGION=us-east-1
-      - AOS_ENDPOINT=aos-endpoint.us-east-1.es.amazonaws.com
+      - AOS_ENDPOINT=vpc-aosconstructdom-mw39gtuurveh-vygkl5rlizm22nwho53jr44l4u.us-east-1.es.amazonaws.com
       # - AOS_SECRET_ARN=""
-      - BEDROCK_AWS_ACCESS_KEY_ID=""
-      - BEDROCK_AWS_SECRET_ACCESS_KEY=""
+      - BEDROCK_AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - BEDROCK_AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - BEDROCK_REGION=us-east-1
-      - CHATBOT_TABLE_NAME=
+      - CHATBOT_TABLE_NAME=ai-customer-service-sharedconstructChatbotF9A1CE94-1QIRLEX0EDFYF
       - CONNECT_BOT_ID=admin
       - CONNECT_DOMAIN_ID=""
       - CONNECT_USER_ARN=""
       - EMBEDDING_ENDPOINT=bce-embedding-and-bge-reranker-250331-endpoint
-      - INDEX_TABLE_NAME=
-      - INTENTION_TABLE_NAME=
+      - INDEX_TABLE_NAME=ai-customer-service-sharedconstructIndexC12FA5A4-11NIMTI9D1T1V
+      - INTENTION_TABLE_NAME=ai-customer-service-chatstackNestedStackchatstackNestedStackResource4C09B786-P9NYPY6U4K57-chattablesIntentionD28A37C4-1MY2BZHAPQ2QP
       - KNOWLEDGE_BASE_ENABLED=true
-      - KNOWLEDGE_BASE_TYPE=
-      - MESSAGES_TABLE_NAME=
-      - MODEL_TABLE_NAME=
-      - OPENAI_KEY_ARN=
-      - PROMPT_TABLE_NAME=
+      - KNOWLEDGE_BASE_TYPE={"intelliAgentKb":{"enabled":true,"vectorStore":{"opensearch":{"enabled":true,"useCustomDomain":false,"customDomainEndpoint":"","customDomainSecretArn":""}},"knowledgeBaseModel":{"enabled":true,"ecrRepository":"aics-us-east-1","ecrImageTag":"latest"}}}
+      - MESSAGES_TABLE_NAME=ai-customer-service-chatstackNestedStackchatstackNestedStackResource4C09B786-P9NYPY6U4K57-chattablesMessageBEE501ED-1E37DTUEXT5N5
+      - MODEL_TABLE_NAME=ai-customer-service-sharedconstructModelFA5EA0DE-NW9VB5RCVLL7
+      - OPENAI_KEY_ARN=arn:aws:secretsmanager:us-east-1:817734611975:secret:OpenAiSecret6D03F07E-R1bJQmMt49XR-8LcCPR
+      - PROMPT_TABLE_NAME=ai-customer-service-chatstackNestedStackchatstackNestedStackResource4C09B786-P9NYPY6U4K57-chattablesPrompt2E49293D-1SSW3ODTVSQGK
       - RERANK_ENDPOINT=bce-embedding-and-bge-reranker-250331-endpoint
-      - SESSIONS_TABLE_NAME=
-      - STOP_SIGNALS_TABLE_NAME=
+      - SESSIONS_TABLE_NAME=ai-customer-service-chatstackNestedStackchatstackNestedStackResource4C09B786-P9NYPY6U4K57-chattablesSessionF2908903-1A4PSAU7C3AC4
+      - STOP_SIGNALS_TABLE_NAME=ai-customer-service-chatstackNestedStackchatstackNestedStackResource4C09B786-P9NYPY6U4K57-chattablesStopSignalsC1AEBA84-ORV0CFMCSHQO
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]
       interval: 30s
       timeout: 10s
-      retries: 3 
+      retries: 3

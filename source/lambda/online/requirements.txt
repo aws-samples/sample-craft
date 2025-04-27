@@ -13,3 +13,4 @@ fastapi==0.115.12
 uvicorn==0.34.2
 sse-starlette==2.2.1
 nest-asyncio==1.6.0
+click==8.1.8

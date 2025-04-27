@@ -5,6 +5,7 @@ from shared.utils.prompt_utils import get_prompt_templates_from_ddb
 from shared.utils.logger_utils import get_logger
 from shared.constant import LLMTaskType
 from functions import get_tool_by_name
+from shared.utils.lambda_invoke_utils import invoke_lambda
 
 logger = get_logger("agent")
 

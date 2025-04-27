@@ -7,6 +7,8 @@ from shared.utils.logger_utils import get_logger
 from shared.utils.langchain_utils import chain_logger
 from shared.constant import LLMTaskType
 from shared.utils.prompt_utils import get_prompt_templates_from_ddb
+from shared.utils.lambda_invoke_utils import invoke_lambda
+ 
 
 logger = get_logger("query_preprocess")
 

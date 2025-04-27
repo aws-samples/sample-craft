@@ -41,7 +41,7 @@ async def handle_llm_request(request: Request):
     return json.loads(response.get("body", "{}"))
 
 @app.post("/stream")
-async def handle_llm_request(request: Request):
+async def handle_stream_request(request: Request):
     body = await request.body()
     event_body = {
         "query": "什么是伦敦金",
@@ -92,22 +92,62 @@ async def handle_llm_request(request: Request):
     
     async def event_generator(event_body: dict):
         try:
+            # Process the event body once
             event_body = default_event_handler(event_body, {})
-            result = entry_executor(event_body)
-            if hasattr(result, '__aiter__'):
-                print("has aiter")
-                async for chunk in result:
-                    if isinstance(chunk, dict):
-                        yield {
-                            "event": "message",
-                            "data": json.dumps(chunk)
-                        }
-            else:
-                print("has not aiter, it is a string")
+            
+            # Create a generator that will yield chunks of the response
+            def response_generator():
+                
+                # Create a custom callback to capture chunks
+                class StreamingCallback:
+                    def __init__(self):
+                        self.collected_chunks = []
+                    
+                    def on_llm_new_token(self, token, **kwargs):
+                        self.collected_chunks.append(token)
+                        return token
+                
+                callback = StreamingCallback()
+                
+                # Set streaming flag and callback
+                event_body["stream"] = True
+                event_body["streaming_callback"] = callback
+                
+                # Execute the entry and get the result
+                result = entry_executor(event_body)
+                
+                # If result is already a generator, return it directly
+                if hasattr(result, '__iter__') and not isinstance(result, (str, dict)):
+                    return result
+                
+                # If result is a string, yield it as a single chunk
+                if isinstance(result, str):
+                    return [result]
+                
+                # If result is a dict with an answer field, yield that
+                if isinstance(result, dict) and "answer" in result:
+                    answer = result["answer"]
+                    if isinstance(answer, str):
+                        return [answer]
+                    elif hasattr(answer, '__iter__') and not isinstance(answer, str):
+                        return answer
+                
+                # Default case: return the collected chunks or the result as a string
+                if callback.collected_chunks:
+                    return callback.collected_chunks
+                return [str(result)]
+            
+            # Get the response generator
+            response_iter = response_generator()
+            
+            # Stream each chunk as an SSE event
+            for chunk in response_iter:
                 yield {
                     "event": "message",
-                    "data": json.dumps({"answer": result, "extra_response": {}})
+                    "data": json.dumps({"answer": chunk, "extra_response": {}})
                 }
+            
+            # Send completion event
             yield {
                 "event": "complete",
                 "data": json.dumps({"status": "completed"})
