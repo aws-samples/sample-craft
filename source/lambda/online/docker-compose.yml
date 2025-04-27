@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  intelli-agent-online:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/app
+    environment:
+      - AWS_REGION=us-east-1
+      - AOS_ENDPOINT=aos-endpoint.us-east-1.es.amazonaws.com
+      # - AOS_SECRET_ARN=""
+      - BEDROCK_AWS_ACCESS_KEY_ID=""
+      - BEDROCK_AWS_SECRET_ACCESS_KEY=""
+      - BEDROCK_REGION=us-east-1
+      - CHATBOT_TABLE_NAME=
+      - CONNECT_BOT_ID=admin
+      - CONNECT_DOMAIN_ID=""
+      - CONNECT_USER_ARN=""
+      - EMBEDDING_ENDPOINT=bce-embedding-and-bge-reranker-250331-endpoint
+      - INDEX_TABLE_NAME=
+      - INTENTION_TABLE_NAME=
+      - KNOWLEDGE_BASE_ENABLED=true
+      - KNOWLEDGE_BASE_TYPE=
+      - MESSAGES_TABLE_NAME=
+      - MODEL_TABLE_NAME=
+      - OPENAI_KEY_ARN=
+      - PROMPT_TABLE_NAME=
+      - RERANK_ENDPOINT=bce-embedding-and-bge-reranker-250331-endpoint
+      - SESSIONS_TABLE_NAME=
+      - STOP_SIGNALS_TABLE_NAME=
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3 
