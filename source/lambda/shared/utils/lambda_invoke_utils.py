@@ -11,7 +11,6 @@ import requests
 from shared.constant import StreamMessageType
 from .logger_utils import get_logger
 from .websocket_utils import is_websocket_request, send_to_ws_client
-from .sse_utils import send_trace_sse
 from pydantic import BaseModel, Field, model_validator
 
 
