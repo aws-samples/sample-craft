@@ -8,10 +8,13 @@ from shared.constant import EntryType
 from sse_starlette.sse import EventSourceResponse
 from lambda_main.main_utils.online_entries import get_entry
 from shared.utils.logger_utils import get_logger
+from fastapi_mcp import FastApiMCP
 
+
+logger = get_logger("app")
 nest_asyncio.apply()
 app = FastAPI()
-logger = get_logger("app")
+
 
 @app.get("/health")
 async def health_check():
@@ -59,7 +62,7 @@ async def handle_stream_request(request: Request):
             "use_websearch": True,
             "google_api_key": "",
             "default_llm_config": {
-                "model_id": "us.amazon.nova-pro-v1:0",
+                "model_id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
                 "endpoint_name": "",
                 "provider": "Bedrock",
                 "base_url": "",
@@ -166,3 +169,14 @@ async def handle_stream_request(request: Request):
             }
     
     return EventSourceResponse(event_generator(event_body))
+
+
+mcp = FastApiMCP(
+    app,  
+    name="MFG Knowledge Base MCP",
+    description="MCP server for MFG Knowledge Base, providing an API for querying knowledge base entries.",
+)
+# Check the MCP information at https://host-url/mcp
+mcp.mount()
+
+
