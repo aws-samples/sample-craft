@@ -46,6 +46,7 @@ export class RootStack extends Stack {
   public apiConstruct: ApiConstructOutputs;
   public modelConstruct: ModelConstructOutputs;
   public config: SystemConfig;
+  public chatStack: ChatStack;
   // private isChinaRegion: boolean;
 
   constructor(scope: Construct, id: string, props: RootStackProps) {
@@ -80,13 +81,16 @@ export class RootStack extends Stack {
     }
 
     if (props.config.chat.enabled) {
-      const chatStack = new ChatStack(this, "chat-stack", {
+      this.chatStack = new ChatStack(this, "chat-stack", {
         config: props.config,
         sharedConstructOutputs: sharedConstruct,
         modelConstructOutputs: modelConstruct,
         domainEndpoint: knowledgeBaseStackOutputs.aosDomainEndpoint,
       });
-      chatStackOutputs = chatStack;
+      new CfnOutput(this, "ALB Endpoint Address", {
+        value: this.chatStack.albDomainEndpoint,
+      });
+
     }
     
     const apiConstruct = new ApiConstruct(this, "api-construct", {
@@ -179,6 +183,9 @@ const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
     oidcRegion: Fn.importValue(`${stackName}-frontend-oidc-region`),
     oidcDomain: Fn.importValue(`${stackName}-frontend-oidc-domain`)
   }),
+  ...(config.chat.enabled && {
+     albUrl: rootStack.chatStack.albDomainEndpoint,
+  })
 });
 // Add dependencies
 rootStack.addDependency(uiStack);

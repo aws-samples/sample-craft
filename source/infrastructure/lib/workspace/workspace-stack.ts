@@ -49,6 +49,7 @@ interface WorkspaceProps extends StackProps {
   readonly oidcLogoutUrl?: string;
   readonly oidcDomain?: string;
   readonly oidcRegion?: string;
+  readonly albUrl?: string;
 }
 
 export interface WorkspaceOutputs {
@@ -223,6 +224,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
         oidcRegion: props.oidcRegion,
+        albUrl: props.albUrl
       },
     });
 
@@ -244,7 +246,8 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         embeddingEndpoint: embeddingEndpoint,
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
-        oidcRegion: props.oidcRegion
+        oidcRegion: props.oidcRegion,
+        albUrl: props.albUrl
       },
     });
 

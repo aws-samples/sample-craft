@@ -1,3 +1,4 @@
+import json
 import os
 import time
 import traceback
@@ -259,7 +260,7 @@ def restapi_event_handler(event_body: dict, context: dict, entry_executor):
     ddb_history_obj = create_ddb_history_obj(
         assembled_body["session_id"], assembled_body["user_id"], assembled_body["client_type"], assembled_body["group_name"], assembled_body["chatbot_id"])
     chat_history = ddb_history_obj.messages_as_langchain
-
+    event_body = json.loads(event_body['body']);
     standard_event_body = {
         "query": event_body["query"],
         "entry_type": EntryType.COMMON,

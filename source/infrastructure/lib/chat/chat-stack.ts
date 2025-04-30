@@ -50,6 +50,7 @@ export interface ChatStackOutputs {
   sqsStatement: iam.PolicyStatement;
   messageQueue: Queue;
   dlq: Queue;
+  albDomainEndpoint: string;
 }
 
 export class ChatStack extends NestedStack implements ChatStackOutputs {
@@ -62,6 +63,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
   public sqsStatement: iam.PolicyStatement;
   public messageQueue: Queue;
   public dlq: Queue;
+  public albDomainEndpoint: string;
 
   private iamHelper: IAMHelper;
   private indexTableName: string;
@@ -227,6 +229,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
       },
       deregistrationDelay: Duration.seconds(30),
     });
+    this.albDomainEndpoint = this.loadBalancer.loadBalancerDnsName;
 
     
 

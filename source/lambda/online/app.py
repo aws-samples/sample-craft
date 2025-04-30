@@ -36,12 +36,8 @@ async def handle_llm_request(request: Request):
             }
         }
     }
+    return lambda_handler(event, None)
 
-    # Call the Lambda handler
-    response = lambda_handler(event, None)
-
-    # Return the response
-    return json.loads(response.get("body", "{}"))
 
 @app.post("/stream")
 async def handle_stream_request(request: Request):
