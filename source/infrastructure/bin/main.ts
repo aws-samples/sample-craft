@@ -46,7 +46,7 @@ export class RootStack extends Stack {
   public apiConstruct: ApiConstructOutputs;
   public modelConstruct: ModelConstructOutputs;
   public config: SystemConfig;
-  public chatStack: ChatStack;
+  public chatStack: ChatStack | undefined;
   // private isChinaRegion: boolean;
 
   constructor(scope: Construct, id: string, props: RootStackProps) {
@@ -184,7 +184,7 @@ const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
     oidcDomain: Fn.importValue(`${stackName}-frontend-oidc-domain`)
   }),
   ...(config.chat.enabled && {
-     albUrl: rootStack.chatStack.albDomainEndpoint,
+     albUrl: rootStack.chatStack?.albDomainEndpoint,
   })
 });
 // Add dependencies
