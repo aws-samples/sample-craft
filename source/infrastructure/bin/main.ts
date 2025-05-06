@@ -80,18 +80,19 @@ export class RootStack extends Stack {
       knowledgeBaseStackOutputs = knowledgeBaseStack;
     }
 
-    if (props.config.chat.enabled) {
+    // if (props.config.chat.enabled) {
       this.chatStack = new ChatStack(this, "chat-stack", {
         config: props.config,
         sharedConstructOutputs: sharedConstruct,
         modelConstructOutputs: modelConstruct,
         domainEndpoint: knowledgeBaseStackOutputs.aosDomainEndpoint,
       });
+      chatStackOutputs = this.chatStack;
       new CfnOutput(this, "ALB Endpoint Address", {
         value: this.chatStack.albDomainEndpoint,
       });
 
-    }
+    // }
     
     const apiConstruct = new ApiConstruct(this, "api-construct", {
       config: props.config,
