@@ -1,23 +1,22 @@
+# import asyncio
 import enum
 import functools
 import importlib
 import json
 import time
 import os
-from typing import Any, Dict, Optional, Callable, Union
 import threading
-
 import requests
+from typing import Any, Dict, Optional, Callable, Union
+
 from shared.constant import StreamMessageType
 from .logger_utils import get_logger
-from .websocket_utils import is_websocket_request, send_to_ws_client
 from pydantic import BaseModel, Field, model_validator
-
+from shared.utils.sse_utils import sse_manager
 
 from ..exceptions import LambdaInvokeError
 
 logger = get_logger("lambda_invoke_utils")
-# thread_local = threading.local()
 thread_local = threading.local()
 CURRENT_STATE = None
 
@@ -39,8 +38,6 @@ class StateContext:
 
     @classmethod
     def get_current_state(cls):
-        # print("thread id",threading.get_ident(),'parent id',threading.)
-        # state = getattr(thread_local,'state',None)
         state = CURRENT_STATE
         assert state is not None, "There is not a valid state in current context"
         return state
@@ -81,9 +78,9 @@ _lambda_invoke_mode = LAMBDA_INVOKE_MODE.LOCAL.value
 
 _is_current_invoke_local = False
 _current_stream_use = True
-_ws_connection_id = None
+# _ws_connection_id = None
 _enable_trace = True
-_is_main_lambda = True
+# _is_main_lambda = True
 
 
 class LambdaInvoker(BaseModel):
@@ -205,11 +202,13 @@ invoke_with_lambda = obj.invoke_with_lambda
 invoke_with_apigateway = obj.invoke_with_apigateway
 invoke_lambda = obj.invoke_lambda
 
+def is_running_local():
+    return _is_current_invoke_local
 
 def send_trace(
     trace_info: str,
     current_stream_use: Union[bool, None] = None,
-    ws_connection_id: Optional[str] = None,
+    connection_id: Optional[str] = None,
     enable_trace: Union[bool, None] = None,
     response = None
 ) -> None:
@@ -219,7 +218,7 @@ def send_trace(
     Args:
         trace_info: The trace information to send
         current_stream_use: Whether to use streaming
-        ws_connection_id: WebSocket connection ID (for WebSocket mode)
+        connection_id: Connection ID (for WebSocket/SSE mode)
         enable_trace: Whether to enable tracing
         response: HTTP response object (for SSE mode)
     """
@@ -228,7 +227,6 @@ def send_trace(
 
     if enable_trace is None:
         enable_trace = _enable_trace
-
     if enable_trace:
         if current_stream_use:
             message = {
@@ -236,8 +234,9 @@ def send_trace(
                 "message": trace_info,
                 "created_time": time.time(),
             }
-
-            # TODO: response in sse
+            sse_manager.send_message(message)
+            if not is_running_local():
+                logger.info(trace_info)
         else:
             logger.info(trace_info)
     else:
@@ -254,8 +253,10 @@ def node_monitor_wrapper(fn: Optional[Callable[..., Any]] = None, *, monitor_key
             enter_time = time.time()
             current_stream_use = state["stream"]
             enable_trace = state["enable_trace"]
+            print(f"enable_trace in monitor start:>>>>>>>>>")
             send_trace(f"\n\n ### {__FUNC_NAME_MAP.get(func.__name__, func.__name__)}\n\n",
                        current_stream_use, None, enable_trace)
+            print(f"enable_trace in monitor end:>>>>>>>>>")
             state['trace_infos'].append(
                 f"Enter: {func.__name__}, time: {time.time()}")
 

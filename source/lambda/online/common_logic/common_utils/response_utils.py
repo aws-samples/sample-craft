@@ -6,18 +6,12 @@ import types
 from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
 from shared.constant import StreamMessageType
 from shared.utils.logger_utils import get_logger
-from shared.utils.websocket_utils import (
-    check_stop_signal,
-    clear_stop_signal,
-    send_to_ws_client,
-)
+from shared.utils.sse_utils import sse_manager
 
 logger = get_logger("response_utils")
 
-
-class WebsocketClientError(Exception):
+class SSEClientError(Exception):
     pass
-
 
 def write_chat_history_to_ddb(
     query: str,
@@ -71,8 +65,7 @@ def api_response(event_body: dict, response: dict):
         "message": {"role": "assistant", "content": answer},
         **response["extra_response"],
     }
-
-
+    
 def stream_response(event_body: dict, response: dict):
     request_timestamp = event_body["request_timestamp"]
     entry_type = event_body["entry_type"]
@@ -81,28 +74,27 @@ def stream_response(event_body: dict, response: dict):
     custom_message_id = event_body["custom_message_id"]
     answer = response["answer"]
     if isinstance(answer, str):
+        print(f"answer is str: {answer}")
         answer = iter([answer])
 
     ddb_history_obj = event_body["ddb_history_obj"]
     answer_str = ""
 
     try:
-        send_to_ws_client(
-            message={
+        sse_manager.send_message({
                 "message_type": StreamMessageType.START,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
-            },
-        )
-
-        for i, chunk in enumerate(answer):
+            })
+        
+        for i, chunk in enumerate(answer or []):
             # Check for stop signal before sending each chunk
             # if check_stop_signal(ws_connection_id):
             #     logger.info(
             #         f"Stop signal detected for connection {ws_connection_id}"
             #     )
             #     # Send END message to notify frontend and stop the session
-            #     send_to_ws_client(
+            #     send_to_sse_client(
             #         {
             #             "message_type": StreamMessageType.END,
             #             "message_id": f"ai_{message_id}",
@@ -118,9 +110,7 @@ def stream_response(event_body: dict, response: dict):
                 logger.info(
                     f"{custom_message_id} running time of first token whole {entry_type} entry: {first_token_time-request_timestamp}s"
                 )
-
-            send_to_ws_client(
-                message={
+            sse_manager.send_message({
                     "message_type": StreamMessageType.CHUNK,
                     "message_id": f"ai_{message_id}",
                     "custom_message_id": custom_message_id,
@@ -129,114 +119,8 @@ def stream_response(event_body: dict, response: dict):
                         "content": chunk,
                     },
                     "chunk_id": i,
-                },
-            )
+                })
             answer_str += chunk
-
-        # if isinstance(answer, ReasonModelStreamResult):
-        #     for i, chunk in enumerate(answer.think_stream):
-        #         # Check for stop signal before sending each chunk
-        #         if check_stop_signal(ws_connection_id):
-        #             logger.info(
-        #                 f"Stop signal detected for connection {ws_connection_id}")
-        #             # Send END message to notify frontend and stop the session
-        #             send_to_ws_client(
-        #                 {
-        #                     "message_type": StreamMessageType.END,
-        #                     "message_id": f"ai_{message_id}",
-        #                     "custom_message_id": custom_message_id
-        #                 },
-        #                 ws_connection_id=ws_connection_id
-        #             )
-        #             clear_stop_signal(ws_connection_id)
-        #             return answer_str
-
-        #         if i == 0 and log_first_token_time:
-        #             first_token_time = time.time()
-        #             logger.info(
-        #                 f"{custom_message_id} running time of first token whole {entry_type} entry: {first_token_time-request_timestamp}s"
-        #             )
-
-        #         send_to_ws_client(message={
-        #             "message_type": StreamMessageType.REASON,
-        #             "message_id": f"ai_{message_id}",
-        #             "custom_message_id": custom_message_id,
-        #             "message": {
-        #                 "role": "assistant",
-        #                 "content": chunk,
-        #             },
-        #             "chunk_id": i,
-        #         },
-        #             ws_connection_id=ws_connection_id
-        #         )
-        #         answer_str += chunk
-        #     for i, chunk in enumerate(answer.content_stream):
-        #         # Check for stop signal before sending each chunk
-        #         if check_stop_signal(ws_connection_id):
-        #             logger.info(
-        #                 f"Stop signal detected for connection {ws_connection_id}")
-        #             # Send END message to notify frontend and stop the session
-        #             send_to_ws_client(
-        #                 {
-        #                     "message_type": StreamMessageType.END,
-        #                     "message_id": f"ai_{message_id}",
-        #                     "custom_message_id": custom_message_id
-        #                 },
-        #                 ws_connection_id=ws_connection_id
-        #             )
-        #             clear_stop_signal(ws_connection_id)
-        #             return answer_str
-
-        #         send_to_ws_client(message={
-        #             "message_type": StreamMessageType.CHUNK,
-        #             "message_id": f"ai_{message_id}",
-        #             "custom_message_id": custom_message_id,
-        #             "message": {
-        #                 "role": "assistant",
-        #                 "content": chunk,
-        #             },
-        #             "chunk_id": i,
-        #         },
-        #             ws_connection_id=ws_connection_id
-        #         )
-        #         answer_str += chunk
-        # else:
-        #     for i, chunk in enumerate(answer):
-        #         # Check for stop signal before sending each chunk
-        #         if check_stop_signal(ws_connection_id):
-        #             logger.info(
-        #                 f"Stop signal detected for connection {ws_connection_id}")
-        #             # Send END message to notify frontend and stop the session
-        #             send_to_ws_client(
-        #                 {
-        #                     "message_type": StreamMessageType.END,
-        #                     "message_id": f"ai_{message_id}",
-        #                     "custom_message_id": custom_message_id
-        #                 },
-        #                 ws_connection_id=ws_connection_id
-        #             )
-        #             clear_stop_signal(ws_connection_id)
-        #             return answer_str
-
-        #         if i == 0 and log_first_token_time:
-        #             first_token_time = time.time()
-        #             logger.info(
-        #                 f"{custom_message_id} running time of first token whole {entry_type} entry: {first_token_time-request_timestamp}s"
-        #             )
-
-        #         send_to_ws_client(message={
-        #             "message_type": StreamMessageType.CHUNK,
-        #             "message_id": f"ai_{message_id}",
-        #             "custom_message_id": custom_message_id,
-        #             "message": {
-        #                 "role": "assistant",
-        #                 "content": chunk,
-        #             },
-        #             "chunk_id": i,
-        #         },
-        #             ws_connection_id=ws_connection_id
-        #         )
-        #         answer_str += chunk
 
         if log_first_token_time:
             logger.info(
@@ -317,51 +201,29 @@ def stream_response(event_body: dict, response: dict):
                 if md_images:
                     context_msg["ddb_additional_kwargs"].setdefault(
                         "figure", []).extend(md_images)
-
-            send_to_ws_client(
-                message=context_msg,
-            )
-
-        # Send END message
-        send_to_ws_client(
-            {
+            sse_manager.send_message(context_msg)
+        sse_manager.send_message({
                 "message_type": StreamMessageType.END,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
-            },
-        )
-    except WebsocketClientError:
+            })
+    except SSEClientError:
         error = traceback.format_exc()
         logger.info(error)
-        # clear_stop_signal(ws_connection_id)
-    except:
+    except Exception:  # Remove unused variable 'e'
         # Bedrock error
         error = traceback.format_exc()
         logger.info(error)
-        send_to_ws_client(
-            {
+        sse_manager.send_message({
                 "message_type": StreamMessageType.ERROR,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
                 "message": {"content": error},
-            },
-        )
-        # clear_stop_signal(ws_connection_id)
+            })
     return answer_str
 
-
-class WebSocketCallback:
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-
-    def __call__(self, answer, contexts):
-        kwargs = {"answer": answer, "contexts": contexts}
-        kwargs.update(**self.kwargs)
-
-        return stream_response(**kwargs)
-
-
 def process_response(event_body, response):
+    """define process response"""
     stream = event_body.get("stream", True)
     if stream:
         return stream_response(event_body, response)
