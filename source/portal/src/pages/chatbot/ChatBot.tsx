@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import CommonLayout from 'src/layout/CommonLayout';
 import Message from './components/Message';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
@@ -23,9 +23,7 @@ import {
   Textarea,
   Toggle,
 } from '@cloudscape-design/components';
-// import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { identity } from 'lodash';
-import ConfigContext from 'src/context/config-context';
 import {
   LLM_BOT_COMMON_MODEL_LIST,
   MODEL_TYPE_LIST,
@@ -76,7 +74,7 @@ interface MessageType {
 interface ChatBotProps {
   historySessionId?: string;
 }
-// const HEARTBEAT_INTERVAL = 1000 * 20; // 20 seconds
+
 const defaultConfig = {
   modelType: {
     label: 'Bedrock',
@@ -291,6 +289,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
     { label: string; value: string }[]
   >([]);
+
+  const [status, setStatus] = useState<'in-progress'|'success'|'error'>('in-progress');
 
   // const connectionStatus = {
   //   [ReadyState.CONNECTING]: 'loading',
@@ -717,13 +717,17 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
   useEffect(() => {
     if (lastMessage !== null) {
-      const message:MessageDataType = JSON.parse(lastMessage);
-      if (message.message_type === 'MONITOR') {
-        setCurrentMonitorMessage((prev) => {
-          return prev + (message?.message ?? '');
-        });
-      } else {
-        handleAIMessage(message);
+      try {
+        const message = JSON.parse(lastMessage as unknown as string) as MessageDataType;
+        if (message.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (message?.message ?? '');
+          });
+        } else {
+          handleAIMessage(message);
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error);
       }
     }
   }, [lastMessage]);
@@ -744,6 +748,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           },
         ];
       });
+      // Reset current messages after adding to history
+      setCurrentAIMessage('');
+      setCurrentMonitorMessage('');
+      setIsMessageEnd(false);
     }
   }, [isMessageEnd]);
 
@@ -755,8 +763,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-
-    setMessages([]);
 
     const messageToSend = customQuery ?? userMessage;
 
@@ -1004,13 +1010,26 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const readyState = useAxiosSSERequest({
     params: buildUrlParams(requestContent),
     onMessage: (data) => {
-      // console.log('Message:', data);
       console.log('Received SSE message:', data);
-      setLastMessage(data);
-      // handleAIMessage(data);
+      try {
+        const message = JSON.parse(data);
+        if (message.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (message?.message ?? '');
+          });
+        } else {
+          handleAIMessage(message);
+        }
+      } catch (error) {
+        console.error('Error parsing SSE message:', error);
+      }
     },
     onError: (err) => {
       console.error('SSE failed', err);
+      // Only set error state if we're not in the middle of a message
+      if (!aiSpeaking) {
+        setStatus('error');
+      }
     },
   });
 
