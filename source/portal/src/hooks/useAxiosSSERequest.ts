@@ -54,7 +54,7 @@ const useAxiosSSERequest = ({
       const es = new EventSource(url);
       eventSourceRef.current = es;
 
-      es.addEventListener(heartbeatEvent, (event) => {
+      es.addEventListener(heartbeatEvent, () => {
         lastPingRef.current = Date.now();
         if (!isClosingRef.current) {
           setStatus('success');

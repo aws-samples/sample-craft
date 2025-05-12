@@ -283,14 +283,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [additionalConfigError, setAdditionalConfigError] = useState('');
   const [apiEndpointError, setApiEndpointError] = useState('');
   const [apiKeyArnError, setApiKeyArnError] = useState('');
-  const [lastMessage, setLastMessage] = useState<MessageDataType | null>(null);
+  const [lastMessage, _] = useState<MessageDataType | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
     { label: string; value: string }[]
   >([]);
 
-  const [status, setStatus] = useState<'in-progress'|'success'|'error'>('in-progress');
+  // const [status, setStatus] = useState<'in-progress'|'success'|'error'>('in-progress');
 
   // const connectionStatus = {
   //   [ReadyState.CONNECTING]: 'loading',
@@ -1028,7 +1028,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       console.error('SSE failed', err);
       // Only set error state if we're not in the middle of a message
       if (!aiSpeaking) {
-        setStatus('error');
+        // setStatus('error');
       }
     },
   });
