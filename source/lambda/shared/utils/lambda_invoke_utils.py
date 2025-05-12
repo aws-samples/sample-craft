@@ -253,10 +253,8 @@ def node_monitor_wrapper(fn: Optional[Callable[..., Any]] = None, *, monitor_key
             enter_time = time.time()
             current_stream_use = state["stream"]
             enable_trace = state["enable_trace"]
-            print(f"enable_trace in monitor start:>>>>>>>>>")
             send_trace(f"\n\n ### {__FUNC_NAME_MAP.get(func.__name__, func.__name__)}\n\n",
                        current_stream_use, None, enable_trace)
-            print(f"enable_trace in monitor end:>>>>>>>>>")
             state['trace_infos'].append(
                 f"Enter: {func.__name__}, time: {time.time()}")
 

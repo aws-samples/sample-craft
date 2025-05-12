@@ -36,13 +36,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/health")
@@ -76,6 +75,7 @@ async def handle_stream_request(
     user_id: str = None,
     chatbot_config: str = None
 ):
+    """Handle stream request"""
     client_id = sse_utils.sse_manager.connect()
     queue = sse_utils.sse_manager.get_client_queue(client_id)
     try:
@@ -118,17 +118,16 @@ async def handle_stream_request(
                             )
                             self.collected_chunks.append(token)
                             return token
-                    
+
                     callback = StreamingCallback()
                     event_body["stream"] = True
                     event_body["streaming_callback"] = callback
-                    
+
                     if event_body_orginal["query"] == "":
                         result = "empty query"
                     else:
                         result = entry_executor(event_body)
 
-                    # 只推送 monitor 类型消息，chunk 只由 on_llm_new_token 推送
                     if hasattr(result, '__iter__') and not isinstance(result, (str, dict)):
                         for item in result:
                             if isinstance(item, dict) and item.get("message_type") == "MONITOR":
@@ -138,9 +137,8 @@ async def handle_stream_request(
                                     }), sse_utils.LOOP
                                 )
                         return result
-                    
+
                     if isinstance(result, str):
-                        # 非 chunk 类型直接推送
                         asyncio.run_coroutine_threadsafe(
                             message_queue.put({
                                 "data": json.dumps({
@@ -151,7 +149,7 @@ async def handle_stream_request(
                             }), sse_utils.LOOP
                         )
                         return [result]
-                    
+
                     if isinstance(result, dict) and "answer" in result:
                         answer = result["answer"]
                         if isinstance(answer, str):
