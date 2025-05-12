@@ -10,7 +10,7 @@ LOOP = None
 class SSEManager:
     """SSEManager for handling sse streaming requests."""
     _current_client_id = None  # Class-level variable
-    
+ 
     def __init__(self):
         self.clients: Dict[str, Queue] = {}
 
@@ -42,6 +42,7 @@ class SSEManager:
         return self.clients[client_id]
     
     def send_message(self, message: dict):
+        """Send message to target client."""
         async def send_message_with_loop(client_id: str, message: str):
             """Send a message to a client by its client_id."""
             if client_id in self.clients:
