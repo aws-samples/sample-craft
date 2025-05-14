@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import ConfigContext, { Config } from 'src/context/config-context';
 import { OIDC_PROVIDER, OIDC_STORAGE } from 'src/utils/const';
 import { getCredentials, isTokenExpired } from 'src/utils/utils';
+import { EventSourcePolyfill, Event, MessageEvent } from 'event-source-polyfill';
 
 interface UseSSEOptions {
   path?: string;
@@ -50,8 +51,15 @@ const useAxiosSSERequest = ({
         eventSourceRef.current = null;
       }
 
-      const url = `http://${config?.albUrl}${path}?${params}&Authorization=${authToken}&Oidc-Info=${oidcInfo}`;
-      const es = new EventSource(url);
+      // const url = `http://${config?.albUrl}${path}?${params}&Authorization=${authToken}&Oidc-Info=${oidcInfo}`;
+      const url = `http://${config?.albUrl}${path}?${params}`;
+      // const es = new EventSource(url);
+      const es = new EventSourcePolyfill(url,{
+        headers: {
+          'Authorization': authToken,
+          'Oidc-Info': oidcInfo
+        }
+      });
       eventSourceRef.current = es;
 
       es.addEventListener(heartbeatEvent, () => {
@@ -61,11 +69,11 @@ const useAxiosSSERequest = ({
         }
       });
 
-      es.onmessage = (event) => {
+      es.onmessage = (event: MessageEvent) => {
         onMessage?.(event.data);
       }
 
-      es.onerror = (err) => {
+      es.onerror = (err: Event) => {
         console.error('SSE error:', err);
         const now = Date.now();
         if (now - lastPingRef.current > heartbeatIntervalMs && !isClosingRef.current) {
@@ -109,9 +117,8 @@ const genHeaderOidcInfo =(config: Config | null)=>{
         provider: oidc?.provider,
         clientId: config?.oidcClientId,
         poolId: config?.oidcPoolId,
-  })
-}
-  
+    })
+  }
 }
 
 export default useAxiosSSERequest;

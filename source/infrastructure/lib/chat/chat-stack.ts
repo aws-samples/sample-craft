@@ -162,6 +162,13 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
           REQUIREMENTS_FILE: 'requirements.txt',
         },
       }),
+      healthCheck: {
+        command: ['CMD-SHELL', 'curl -f http://localhost:80/health || exit 1'],
+        interval: Duration.seconds(30),
+        timeout: Duration.seconds(5),
+        retries: 3,
+        startPeriod: Duration.seconds(10),
+      },
       environment: {
         AOS_ENDPOINT: domainEndpoint,
         AOS_SECRET_ARN: customDomainSecretArn,

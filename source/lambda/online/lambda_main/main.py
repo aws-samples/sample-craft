@@ -6,18 +6,13 @@ import uuid
 from datetime import datetime, timezone
 
 import boto3
-from botocore.exceptions import ClientError
-from shared.constant import EntryType, ParamType, Threshold,WSConnectionSignal
-from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
-from shared.utils.lambda_invoke_utils import (
-    send_trace
-)
-from shared.utils.logger_utils import get_logger
-from shared.utils.websocket_utils import set_stop_signal, load_ws_client, clear_stop_signal
-from lambda_main.main_utils.online_entries import get_entry
-from common_logic.common_utils.response_utils import process_response
-from shared.utils.secret_utils import get_secret_value
 
+from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
+from common_logic.common_utils.response_utils import process_response
+from lambda_main.main_utils.online_entries import get_entry
+from shared.constant import EntryType, ParamType, Threshold
+from shared.utils.lambda_invoke_utils import send_trace
+from shared.utils.logger_utils import get_logger
 
 logger = get_logger("main")
 
@@ -43,11 +38,6 @@ connect_domain_id = os.environ.get("CONNECT_DOMAIN_ID", "")
 connect_user_arn = os.environ.get("CONNECT_USER_ARN", "")
 kb_enabled = os.environ["KNOWLEDGE_BASE_ENABLED"]
 kb_type = os.environ["KNOWLEDGE_BASE_TYPE"]
-
-
-
-
-
 
 def create_ddb_history_obj(session_id: str, user_id: str, client_type: str, group_name: str, chatbot_id: str) -> DynamoDBChatMessageHistory:
     """Create a DynamoDBChatMessageHistory object

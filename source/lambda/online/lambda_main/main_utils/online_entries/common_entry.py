@@ -8,7 +8,6 @@ from typing import Annotated, Any, List, TypedDict, Union
 from common_logic.common_utils.chatbot_utils import ChatbotManager
 from common_logic.common_utils.ddb_utils import custom_index_desc
 from common_logic.common_utils.response_utils import (
-    clear_stop_signal,
     process_response,
 )
 from common_logic.common_utils.serialization_utils import JSONEncoder
@@ -489,8 +488,8 @@ def final_results_preparation(state: ChatbotState):
     elif hasattr(answer, '__iter__') and not isinstance(answer, str):
         print("final_results_preparation is not str")
         # Convert generator or other iterable to string
-        answer = ''.join(str(item) for item in answer)
-        print(f"final_results_preparation is  {answer}")
+        # answer = ''.join(str(item) for item in answer)
+        # print(f"final_results_preparation is  {answer}")
         state["answer"] = answer
     app_response = process_response(state["event_body"], state)
     return {"app_response": app_response}

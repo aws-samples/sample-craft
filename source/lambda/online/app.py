@@ -19,6 +19,7 @@ from lambda_main.main_utils.online_entries import get_entry
 from shared.constant import EntryType
 from shared.utils.logger_utils import get_logger
 from fastapi_mcp import FastApiMCP
+from authorize import require_auth
 
 import shared.utils.sse_utils as sse_utils
 
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,6 +52,7 @@ async def health_check():
     return {"message": "OK"}
 
 @app.post("/llm")
+@require_auth
 async def handle_llm_request(request: Request):
     """Handle LLM request"""
     body = await request.body()
@@ -65,10 +68,10 @@ async def handle_llm_request(request: Request):
     }
     return lambda_handler(event, None)
 
-
-
 @app.get("/stream")
+@require_auth
 async def handle_stream_request(
+    request: Request,
     query: str,
     entry_type: str = EntryType.COMMON,
     session_id: str = None,
@@ -99,84 +102,29 @@ async def handle_stream_request(
                 event_body = default_event_handler(event_body_orginal, {})
                 message_queue = asyncio.Queue()
 
-                def response_generator():
-                    class StreamingCallback:
-                        """Streaming callback"""
-                        def __init__(self):
-                            self.collected_chunks = []
+                class StreamingCallback:
+                    """Streaming callback"""
+                    def __init__(self):
+                        self.collected_chunks = []
 
-                        def on_llm_new_token(self, token, **kwargs):
-                            """send chunk to client"""
-                            asyncio.run_coroutine_threadsafe(
-                                message_queue.put({
-                                    "data": json.dumps({
-                                        "message_type": "CHUNK",
-                                        "message": {"content": token},
-                                        "created_time": time.time()
-                                    })
-                                }), sse_utils.LOOP
-                            )
-                            self.collected_chunks.append(token)
-                            return token
+                    def on_llm_new_token(self, token, **kwargs):
+                        """send chunk to client"""
+                        message = {
+                            "event": "message",
+                            "data": json.dumps({
+                                "message_type": "CHUNK",
+                                "message": {"content": token},
+                                "created_time": time.time()
+                            })
+                        }
+                        asyncio.create_task(message_queue.put(message))
+                        self.collected_chunks.append(token)
+                        return token
 
-                    callback = StreamingCallback()
-                    event_body["stream"] = True
-                    event_body["streaming_callback"] = callback
+                callback = StreamingCallback()
+                event_body["stream"] = True
+                event_body["streaming_callback"] = callback
 
-                    if event_body_orginal["query"] == "":
-                        result = "empty query"
-                    else:
-                        result = entry_executor(event_body)
-
-                    if hasattr(result, '__iter__') and not isinstance(result, (str, dict)):
-                        for item in result:
-                            if isinstance(item, dict) and item.get("message_type") == "MONITOR":
-                                asyncio.run_coroutine_threadsafe(
-                                    message_queue.put({
-                                        "data": json.dumps(item)
-                                    }), sse_utils.LOOP
-                                )
-                        return result
-
-                    if isinstance(result, str):
-                        asyncio.run_coroutine_threadsafe(
-                            message_queue.put({
-                                "data": json.dumps({
-                                    "message_type": "INFO",
-                                    "message": {"content": result},
-                                    "created_time": time.time()
-                                })
-                            }), sse_utils.LOOP
-                        )
-                        return [result]
-
-                    if isinstance(result, dict) and "answer" in result:
-                        answer = result["answer"]
-                        if isinstance(answer, str):
-                            asyncio.run_coroutine_threadsafe(
-                                message_queue.put({
-                                    "data": json.dumps({
-                                        "message_type": "INFO",
-                                        "message": {"content": answer},
-                                        "created_time": time.time()
-                                    })
-                                }), sse_utils.LOOP
-                            )
-                            return [answer]
-                        elif hasattr(answer, '__iter__') and not isinstance(answer, str):
-                            for item in answer:
-                                if isinstance(item, dict) and item.get("message_type") == "MONITOR":
-                                    asyncio.run_coroutine_threadsafe(
-                                        message_queue.put({
-                                            "data": json.dumps(item)
-                                        }), sse_utils.LOOP
-                                    )
-                            return answer            
-                    if callback.collected_chunks:
-                        return callback.collected_chunks
-                    return [str(result)]
-
-                response_generator()
                 async def send_heartbeat():
                     while True:
                         await asyncio.sleep(HEARTBEAT_INTERVAL)
@@ -188,6 +136,23 @@ async def handle_stream_request(
 
                 heartbeat_task = asyncio.create_task(send_heartbeat())
                 try:
+                    if event_body_orginal["query"] == "":
+                        result = "empty query"
+                    else:
+                        result = entry_executor(event_body)
+
+                    if isinstance(result, dict) and "answer" in result:
+                        answer = result["answer"]
+                        if hasattr(answer, '__iter__') and not isinstance(answer, str):
+                            for item in answer:
+                                if isinstance(item, dict) and item.get("message_type") == "MONITOR":
+                                    message = {
+                                        "event": "message",
+                                        "data": json.dumps(item)
+                                    }
+                                    await message_queue.put(message)
+                                    yield message
+
                     while True:
                         try:
                             message = await asyncio.wait_for(message_queue.get(), timeout=0.1)
@@ -208,6 +173,7 @@ async def handle_stream_request(
                 error_info = '{}: {}'.format(type(e).__name__, e)
                 logger.error("%s\nAn error occurred: %s", traceback.format_exc(), error_info)
                 yield {
+                    "event": "error",
                     "data": json.dumps({"error": error_info})
                 }
 
