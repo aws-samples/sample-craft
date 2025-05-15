@@ -238,24 +238,6 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     });
     this.albDomainEndpoint = this.loadBalancer.loadBalancerDnsName;
 
-    
-
-
-    // // Add SQS queue as event source
-    // this.ecsService.autoScaleTaskCount({
-    //   minCapacity: 1,
-    //   maxCapacity: 10,
-    // }).scaleOnMetric('QueueMessagesVisible', {
-    //   metric: this.messageQueue.metricApproximateNumberOfMessagesVisible(),
-    //   scalingSteps: [
-    //     { upper: 0, change: -1 },
-    //     { lower: 1, change: +1 },
-    //     { lower: 10, change: +2 },
-    //   ],
-    //   adjustmentType: appscaling.AdjustmentType.CHANGE_IN_CAPACITY,
-    // });
-
-
     if (props.config.chat.amazonConnect.enabled) {
       new ConnectConstruct(this, "connect-construct");
     }

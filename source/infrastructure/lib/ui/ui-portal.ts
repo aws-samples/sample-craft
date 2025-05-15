@@ -13,6 +13,7 @@
 
 import { Construct } from "constructs";
 import * as path from "path";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import {
   Aws,
   aws_cloudfront as cloudfront,
@@ -33,6 +34,7 @@ export interface PortalConstructProps {
    */
   uiSourcePath?: string;
   responseHeadersPolicyName: string;
+  alb?: elbv2.ApplicationLoadBalancer ;
 }
 
 /**
@@ -72,6 +74,7 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
         defaultRootObject: 'index.html',
         priceClass: 'PriceClass_All',
         ipv6Enabled: false,
+        httpVersion: 'http2',
         origins: [
           {
             id: this.portalBucket.bucketName,
@@ -79,7 +82,19 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
             s3OriginConfig: {
               originAccessIdentity: oaiId,
             },
-          }
+          },
+          ...(props.alb ? [{
+            id: `OriginFor${props.alb.loadBalancerName}`,
+            domainName: props.alb.loadBalancerDnsName,
+            customOriginConfig: {
+              httpPort: 80,
+              httpsPort: 443,
+              originProtocolPolicy: 'http-only',
+              originSslProtocols: ['TLSv1.2'],
+              originKeepaliveTimeout: 60,
+              originReadTimeout: 30
+            }
+          }] : [])
         ],
         defaultCacheBehavior: {
           targetOriginId: this.portalBucket.bucketName,
@@ -90,8 +105,8 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
             cookies: { forward: 'none' }
           },
           minTtl: 0,
-          defaultTtl: 86400,
-          maxTtl: 31536000,
+          defaultTtl: 0,
+          maxTtl: 0
         },
         customErrorResponses: [
           {
@@ -104,8 +119,7 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
             responseCode: 200,
             responsePagePath: '/index.html',
           }
-        ],
-        httpVersion: 'http2',
+        ]
       }
     });
 
@@ -129,4 +143,3 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
     });
   }
 }
-

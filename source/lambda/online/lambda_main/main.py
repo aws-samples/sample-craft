@@ -300,8 +300,6 @@ def default_event_handler(event_body: dict, context: dict):
     ddb_history_obj = create_ddb_history_obj(
         assembled_body["session_id"], assembled_body["user_id"], assembled_body["client_type"], assembled_body["group_name"], assembled_body["chatbot_id"])
     chat_history = ddb_history_obj.messages_as_langchain
-
-    # event_body["stream"] = context["stream"]
     event_body["chat_history"] = chat_history
     event_body["custom_message_id"] = assembled_body["message_id"]
     event_body["message_id"] = assembled_body["message_id"]

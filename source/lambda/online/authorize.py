@@ -45,6 +45,9 @@ def require_auth(func: Callable):
         if not request:
             logger.error("Request object not found in args or kwargs")
             raise HTTPException(status_code=500, detail="Request object not found")
+
+        logger.info(f"Request headers: {request.headers}")
+
         authorization, oidc_info = get_auth_info(request)
         
         if not authorization:

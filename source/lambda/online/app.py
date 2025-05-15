@@ -7,6 +7,7 @@ import time
 import asyncio
 import traceback
 from contextlib import asynccontextmanager
+import uuid
 
 import nest_asyncio
 from fastapi import FastAPI, Request
@@ -37,6 +38,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Add authentication middleware
+# app.add_middleware(AuthMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -109,6 +112,7 @@ async def handle_stream_request(
 
                     def on_llm_new_token(self, token, **kwargs):
                         """send chunk to client"""
+                        logger.info(f"New token generated: {token}")
                         message = {
                             "event": "message",
                             "data": json.dumps({
@@ -137,10 +141,10 @@ async def handle_stream_request(
                 heartbeat_task = asyncio.create_task(send_heartbeat())
                 try:
                     if event_body_orginal["query"] == "":
+                        print("!!!!!!!!!!!empty query")
                         result = "empty query"
                     else:
                         result = entry_executor(event_body)
-
                     if isinstance(result, dict) and "answer" in result:
                         answer = result["answer"]
                         if hasattr(answer, '__iter__') and not isinstance(answer, str):
@@ -180,13 +184,17 @@ async def handle_stream_request(
         return EventSourceResponse(
             event_generator(),
             headers={
-                "Cache-Control": "no-cache",
+                "Cache-Control": "no-cache, no-transform",
                 "Connection": "keep-alive",
                 "Content-Type": "text/event-stream",
                 "X-Accel-Buffering": "no",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-                "Access-Control-Allow-Methods": "*"
+                "Access-Control-Allow-Methods": "*",
+                "Transfer-Encoding": "chunked",
+                "X-Content-Type-Options": "nosniff",
+                "Pragma": "no-cache",
+                "Expires": "0"
             }
         )
 

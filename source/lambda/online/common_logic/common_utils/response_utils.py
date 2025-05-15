@@ -74,8 +74,9 @@ def stream_response(event_body: dict, response: dict):
     custom_message_id = event_body["custom_message_id"]
     answer = response["answer"]
     if isinstance(answer, str):
-        print(f"answer is str: {answer}")
         answer = iter([answer])
+    elif not hasattr(answer, '__iter__'):
+        answer = iter([str(answer)])
 
     ddb_history_obj = event_body["ddb_history_obj"]
     answer_str = ""
@@ -88,22 +89,6 @@ def stream_response(event_body: dict, response: dict):
             })
         
         for i, chunk in enumerate(answer or []):
-            # Check for stop signal before sending each chunk
-            # if check_stop_signal(ws_connection_id):
-            #     logger.info(
-            #         f"Stop signal detected for connection {ws_connection_id}"
-            #     )
-            #     # Send END message to notify frontend and stop the session
-            #     send_to_sse_client(
-            #         {
-            #             "message_type": StreamMessageType.END,
-            #             "message_id": f"ai_{message_id}",
-            #             "custom_message_id": custom_message_id,
-            #         },
-            #         ws_connection_id=ws_connection_id,
-            #     )
-            #     clear_stop_signal(ws_connection_id)
-            #     return answer_str
 
             if i == 0 and log_first_token_time:
                 first_token_time = time.time()
@@ -116,11 +101,11 @@ def stream_response(event_body: dict, response: dict):
                     "custom_message_id": custom_message_id,
                     "message": {
                         "role": "assistant",
-                        "content": chunk,
+                        "content": str(chunk),
                     },
                     "chunk_id": i,
                 })
-            answer_str += chunk
+            answer_str += str(chunk)
 
         if log_first_token_time:
             logger.info(
@@ -139,29 +124,24 @@ def stream_response(event_body: dict, response: dict):
             additional_kwargs=response.get("ddb_additional_kwargs", {}),
         )
 
-        # Disable Context now, since API Gateway has a maximum Message payload size of 128 KB
-        # Ref: https://docs.aws.amazon.com/apigateway/latest/developerguide/limits.html
-        # Send source and contexts
+        # Send context message if available
         if response:
             context_msg = {
                 "message_type": StreamMessageType.CONTEXT,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
                 "ddb_additional_kwargs": {},
-                # **response["extra_response"]
             }
 
-            figure = response.get("extra_response").get("ref_figures", [])
+            figure = response.get("extra_response", {}).get("ref_figures", [])
             if figure:
-                # context_msg["ddb_additional_kwargs"]["figure"] = figure[:2]
                 context_msg["ddb_additional_kwargs"]["figure"] = figure
 
-            ref_doc = response.get("extra_response").get("ref_docs", [])
+            ref_doc = response.get("extra_response", {}).get("ref_docs", [])
             if ref_doc:
                 md_images = []
                 md_image_list = []
                 for doc in ref_doc:
-                    # Look for markdown image pattern in reference doc: ![alt text](image_path)
                     doc_content = doc.page_content
                     for line in doc_content.split('\n'):
                         img_start = line.find("![")
@@ -172,7 +152,6 @@ def stream_response(event_body: dict, response: dict):
 
                                 if alt_end != -1 and img_end != -1:
                                     image_path = line[alt_end + 2:img_end]
-                                    # Remove optional title if present
                                     if '"' in image_path or "'" in image_path:
                                         image_path = image_path.split(
                                             '"')[0].split("'")[0].strip()
@@ -189,12 +168,10 @@ def stream_response(event_body: dict, response: dict):
                                         if not have_same_image and md_image_json not in md_images:
                                             md_images.append(md_image_json)
                                             md_image_list.append(image_path)
-                                # Look for next image in the same line
                                 img_start = line.find("![", img_start + 2)
                             except Exception as e:
                                 logger.error(
                                     f"Error processing markdown image: {str(e)}, in line: {line}")
-                                # Skip to next image pattern in this line
                                 img_start = line.find("![", img_start + 2)
                                 continue
 
@@ -210,8 +187,7 @@ def stream_response(event_body: dict, response: dict):
     except SSEClientError:
         error = traceback.format_exc()
         logger.info(error)
-    except Exception:  # Remove unused variable 'e'
-        # Bedrock error
+    except Exception:
         error = traceback.format_exc()
         logger.info(error)
         sse_manager.send_message({

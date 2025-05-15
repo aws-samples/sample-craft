@@ -486,10 +486,7 @@ def final_results_preparation(state: ChatbotState):
         ).strip()
         state["answer"] = answer
     elif hasattr(answer, '__iter__') and not isinstance(answer, str):
-        print("final_results_preparation is not str")
-        # Convert generator or other iterable to string
-        # answer = ''.join(str(item) for item in answer)
-        # print(f"final_results_preparation is  {answer}")
+        # Keep the iterable as is to preserve streaming
         state["answer"] = answer
     app_response = process_response(state["event_body"], state)
     return {"app_response": app_response}

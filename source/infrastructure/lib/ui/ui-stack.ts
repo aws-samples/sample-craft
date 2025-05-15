@@ -15,14 +15,15 @@ import { Aws, StackProps, Stack, CfnOutput } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { join } from "path";
 
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
+
 import { SystemConfig } from "../shared/types";
 import { PortalConstruct } from "../ui/ui-portal";
 import { UserConstruct } from "../user/user-construct";
 
-
-
 interface UIStackProps extends StackProps {
   readonly config: SystemConfig;
+  readonly alb?: elbv2.ApplicationLoadBalancer;
 }
 
 export interface UIStackOutputs {
@@ -41,11 +42,13 @@ export class UIStack extends Stack implements UIStackOutputs {
     super(scope, id, props);
 
     const mainPortalConstruct = new PortalConstruct(this, "MainUI", {
-      responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-main`
+      responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-main`,
+      alb: props.alb
     });
     const clientPortalConstruct = new PortalConstruct(this, "ClientUI", {
       uiSourcePath: join(__dirname, "../../../cs-portal/dist"),
-      responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-client`
+      responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-client`,
+      alb: props.alb
     });
     if (!props.config.deployRegion.startsWith("cn-")) {
       const userConstruct = new UserConstruct(this, "User", {
