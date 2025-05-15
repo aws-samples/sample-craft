@@ -30,6 +30,7 @@ class CustomTextLoader(TextLoader):
     ):
         """Initialize with file path."""
         super().__init__(file_path, encoding, autodetect_encoding)
+        self.s3_uri = s3_uri
 
     def lazy_load(self) -> Iterator[Document]:
         """Load from file path."""
@@ -69,10 +70,9 @@ def process_text(processing_params: ProcessingParameters):
     
     # Use the loader with the local file path
     loader = CustomTextLoader(file_path=local_path, s3_uri=f"s3://{bucket}/{key}")
-    doc = loader.load()
+    doc_list = loader.load()
     
     # Clean up the temporary file
     Path(local_path).unlink(missing_ok=True)
 
-    doc_list = [doc]
     return doc_list

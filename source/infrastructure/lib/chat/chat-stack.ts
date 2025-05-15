@@ -78,6 +78,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
 
     this.iamHelper = props.sharedConstructOutputs.iamHelper;
     const vpc = props.sharedConstructOutputs.vpc;
+    // const privateSubnets = props.sharedConstructOutputs.privateSubnets;
     const securityGroups = props.sharedConstructOutputs.securityGroups;
     const domainEndpoint = props.domainEndpoint ?? '';
 

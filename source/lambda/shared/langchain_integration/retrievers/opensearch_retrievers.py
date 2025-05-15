@@ -200,7 +200,7 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
     def add_search_by_tag(search_results:List[Document],tag:str):
         for doc in search_results:
             doc.metadata["search_by"] = tag
-            for extend_doc in doc.metadata["extend_chunks"]:
+            for extend_doc in doc.metadata.get("extend_chunks",[]):
                 extend_doc.metadata["search_by"] = tag
         return search_results
 
@@ -472,83 +472,6 @@ class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
         )   
         return previous_doc_list + next_doc_list
 
-        # inner_previous_content_list, inner_next_content_list = (
-        #     await self.aget_sibling_context(chunk_id, window_size)
-        # )
-        # if (
-        #     len(inner_previous_content_list) == window_size
-        #     and len(inner_next_content_list) == window_size
-        # ):
-        #     return inner_previous_content_list, inner_next_content_list
-
-        # if "heading_hierarchy" not in doc.metadata:
-        #     return [previous_content_list, next_content_list]
-        # if "previous" in doc.metadata["heading_hierarchy"]:
-        #     previous_chunk_id = doc.metadata["heading_hierarchy"]["previous"]
-        #     previous_pos = 0
-        #     while (
-        #         previous_chunk_id
-        #         and previous_chunk_id.startswith("$")
-        #         and previous_pos < window_size
-        #     ):
-        #         opensearch_query_response = await self.database.asearch(
-        #             self._build_exact_search_query(
-        #                 query_term=previous_chunk_id,
-        #                 field="metadata.chunk_id",
-        #                 size=1,
-        #             )
-        #         )
-        #         if len(opensearch_query_response["hits"]["hits"]) > 0:
-        #             r = opensearch_query_response["hits"]["hits"][0]
-        #             previous_chunk_id = r["_source"]["metadata"][
-        #                 "heading_hierarchy"
-        #             ]["previous"]
-        #             previous_content_list.insert(
-        #                 0,
-        #                 Document(
-        #                     id=r["_id"],
-        #                     page_content=r["_source"][self.database.text_field],
-        #                     metadata={
-        #                         **r["_source"]["metadata"],
-        #                     },
-        #                 ),
-        #             )
-        #             previous_pos += 1
-        #         else:
-        #             break
-        # if "next" in doc.metadata["heading_hierarchy"]:
-        #     next_chunk_id = doc.metadata["heading_hierarchy"]["next"]
-        #     next_pos = 0
-        #     while (
-        #         next_chunk_id
-        #         and next_chunk_id.startswith("$")
-        #         and next_pos < window_size
-        #     ):
-        #         opensearch_query_response = await self.database.asearch(
-        #             self._build_exact_search_query(
-        #                 query_term=next_chunk_id,
-        #                 field="metadata.chunk_id",
-        #                 size=1,
-        #             )
-        #         )
-        #         if len(opensearch_query_response["hits"]["hits"]) > 0:
-        #             r = opensearch_query_response["hits"]["hits"][0]
-        #             next_chunk_id = r["_source"]["metadata"][
-        #                 "heading_hierarchy"
-        #             ]["next"]
-        #             next_content_list.append(
-        #                 Document(
-        #                     id=r["_id"],
-        #                     page_content=r["_source"][self.database.text_field],
-        #                     metadata={
-        #                         **r["_source"]["metadata"],
-        #                     },
-        #                 )
-        #             )
-        #             next_pos += 1
-        #         else:
-        #             break
-        # return [previous_content_list, next_content_list]
 
     async def aget_whole_doc(self, file_path, size=100) -> list[Document]:
         """

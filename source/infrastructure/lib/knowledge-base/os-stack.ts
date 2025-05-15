@@ -16,12 +16,12 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Domain, EngineVersion } from "aws-cdk-lib/aws-opensearchservice";
 import { Construct } from "constructs";
+import { SystemConfig } from "../shared/types";
+import { SharedConstructOutputs } from "../shared/shared-construct";
 
 interface AOSProps extends StackProps {
-  osVpc?: ec2.Vpc;
-  securityGroup?: [ec2.SecurityGroup];
-  useCustomDomain: boolean;
-  customDomainEndpoint: string;
+  readonly config: SystemConfig;
+  readonly sharedConstructOutputs: SharedConstructOutputs
 }
 
 export class AOSConstruct extends Construct {
@@ -30,19 +30,38 @@ export class AOSConstruct extends Construct {
   constructor(scope: Construct, id: string, props: AOSProps) {
     super(scope, id);
 
-    if (props.useCustomDomain) {
-      const devDomain = Domain.fromDomainEndpoint(this, "Domain", props.customDomainEndpoint);
-      this.domainEndpoint = devDomain.domainEndpoint;
-    } else {
+    const useIntelliAgentKb = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled;
+    const useCustomDomain = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain;
 
-      const devDomain = new Domain(this, "Domain", {
+    if (!useIntelliAgentKb) {
+      throw new Error("IntelliAgentKb is not enabled");
+    }
+
+    if (useCustomDomain) {
+      const customDomainEndpoint = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainEndpoint;
+      const devDomain = Domain.fromDomainEndpoint(this, "Domain", customDomainEndpoint);
+      this.domainEndpoint = devDomain.domainEndpoint;
+      return;
+    } else {
+      if (!props.sharedConstructOutputs.privateSubnets) {
+        throw new Error("Private subnets are not detected in the shared construct outputs");
+      }
+      let devDomainResourceName = `Domain`;
+      if (props.config.vpc.existingVpcId) {
+        devDomainResourceName = `Domain-${props.config.vpc.existingVpcId}`;
+      }
+      // Use Dynamic resource name(`Domain-${props.config.vpc.existingVpcId}`) to avoid name collision.
+      // This is caused by the update mechanism of the OpenSearch service in AWS CDK.
+      // Even we fill in a new vpc here, CDK still tries to update the existing domain first which will cause subnet not found error.
+      const devDomain = new Domain(this, devDomainResourceName, {
         version: EngineVersion.OPENSEARCH_2_17,
         removalPolicy: RemovalPolicy.DESTROY,
-        vpc: props.osVpc,
-        zoneAwareness: {
-          enabled: true,
-        },
-        securityGroups: props.securityGroup,
+        vpc: props.sharedConstructOutputs.vpc,
+        // OpenSearch requires a single subnet in a VPC
+        vpcSubnets: [{
+          subnets: [props.sharedConstructOutputs.privateSubnets[0]],
+        }],
+        securityGroups: props.sharedConstructOutputs.securityGroups,
         capacity: {
           dataNodes: 2,
           dataNodeInstanceType: "r6g.2xlarge.search",
@@ -64,6 +83,5 @@ export class AOSConstruct extends Construct {
 
       this.domainEndpoint = devDomain.domainEndpoint;
     }
-
   }
 }

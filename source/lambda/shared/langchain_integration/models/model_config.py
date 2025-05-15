@@ -13,6 +13,7 @@ class ModelConfig:
     any_tool_choice_value: str = "any"
     enable_prefill: bool = True
     is_reasoning_model:bool = False
+    support_prompt_cache: bool = False
 
 
     def __post_init__(self):
@@ -78,11 +79,13 @@ CLAUDE_MODEL_CONFIG = [
     ),
     ModelConfig(
         model_id=LLMModelType.CLAUDE_3_5_SONNET_V2,
-        default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy()
+        default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy(),
+        support_prompt_cache=False,
     ),
     ModelConfig(
         model_id=LLMModelType.CLAUDE_3_5_HAIKU,
-        default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy()
+        default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy(),
+        support_prompt_cache=True
     ),
     ModelConfig(
         model_id=LLMModelType.CLAUDE_2,
@@ -96,6 +99,7 @@ CLAUDE_MODEL_CONFIG = [
         model_id=LLMModelType.CLAUDE_3_7_SONNET_THINKING_US,
         model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         is_reasoning_model=True,
+        support_prompt_cache=True,
         default_model_kwargs={
             "max_tokens": 4096,
             "temperature": 1.0,
@@ -111,6 +115,7 @@ CLAUDE_MODEL_CONFIG = [
         model_id=LLMModelType.CLAUDE_3_7_SONNET_US,
         model="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
         is_reasoning_model=False,
+        support_prompt_cache=True,
         default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy()  
     ),
 ]
@@ -120,19 +125,22 @@ NOVA_MODEL_CONFIGS = [
         model_id=LLMModelType.NOVA_PRO,
         default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy(),
         enable_any_tool_choice=False,
-        enable_prefill=False
+        enable_prefill=False,
+        support_prompt_cache=True
     ),
     ModelConfig(
         model_id=LLMModelType.NOVA_LITE,
         default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy(),
         enable_any_tool_choice=False,
-        enable_prefill=False
+        enable_prefill=False,
+        support_prompt_cache=True
     ),
     ModelConfig(
         model_id=LLMModelType.NOVA_MICRO,
         default_model_kwargs=BASE_CONFIG.default_model_kwargs.copy(),
         enable_any_tool_choice=False,
-        enable_prefill=False
+        enable_prefill=False,
+        support_prompt_cache=True
     ),
 ]
 
