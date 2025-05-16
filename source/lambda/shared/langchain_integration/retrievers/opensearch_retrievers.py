@@ -317,8 +317,7 @@ class OpensearchHybridRetrieverBase(BaseRetriever):
             self._aget_relevant_documents(
                 query, run_manager=run_manager, **kwargs
             )
-        )    
-
+        )
 
 class OpensearchHybridQueryDocumentRetriever(OpensearchHybridRetrieverBase):
 
