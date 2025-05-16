@@ -49,6 +49,7 @@ interface WorkspaceProps extends StackProps {
   readonly oidcLogoutUrl?: string;
   readonly oidcDomain?: string;
   readonly oidcRegion?: string;
+  readonly albUrl?: string;
 }
 
 export interface WorkspaceOutputs {
@@ -61,7 +62,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
   public readonly bySessionIdIndex: string = "bySessionId";
   public readonly byTimestampIndex: string = "byTimestamp";
   private iamHelper: IAMHelper;
-  public wsEndpoint: string = "";
+  // public wsEndpoint: string = "";
 
   constructor(scope: Construct, id: string, props: WorkspaceProps) {
     super(scope, id, props);
@@ -192,25 +193,25 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
       new lambdaEventSources.SqsEventSource(chatQueueConstruct.messageQueue, { batchSize: 1 }),
     );
 
-    const webSocketApi = new WSWebSocketConstruct(this, "WSWebSocketApi", {
-      dispatcherLambda: wsDispatcher.function,
-      sendMessageLambda: wsQueryHandler,
-      sendResponseLambda: wsQueryHandler,
-      customAuthorizerLambda: customAuthorizerLambda.function,
-      iamHelper: this.iamHelper,
-      sessionTableName: customerSessionsTable.tableName,
-      messageTableName: customerMessagesTable.tableName,
-      sessionIndex: "byTimestamp",
-      messageIndex: "bySessionId",
-    });
-    let wsStage = webSocketApi.websocketApiStage
-    this.wsEndpoint = `${wsStage.api.apiEndpoint}/${wsStage.stageName}/`;
+    // const webSocketApi = new WSWebSocketConstruct(this, "WSWebSocketApi", {
+    //   dispatcherLambda: wsDispatcher.function,
+    //   sendMessageLambda: wsQueryHandler,
+    //   sendResponseLambda: wsQueryHandler,
+    //   customAuthorizerLambda: customAuthorizerLambda.function,
+    //   iamHelper: this.iamHelper,
+    //   sessionTableName: customerSessionsTable.tableName,
+    //   messageTableName: customerMessagesTable.tableName,
+    //   sessionIndex: "byTimestamp",
+    //   messageIndex: "bySessionId",
+    // });
+    // let wsStage = webSocketApi.websocketApiStage
+    // this.wsEndpoint = `${wsStage.api.apiEndpoint}/${wsStage.stageName}/`;
 
     const uiExports = new UiExportsConstruct(this, "MainUIExportAsset", {
       portalBucketName: props.portalBucketName,
       uiProps: {
-        websocket: props.apiConstructOutputs.wsEndpoint,
-        workspaceWebsocket: this.wsEndpoint,
+        // websocket: props.apiConstructOutputs.wsEndpoint,
+        // workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,
         oidcIssuer: props.oidcIssuer,
@@ -223,17 +224,17 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
         oidcRegion: props.oidcRegion,
+        albUrl: props.albUrl
       },
     });
 
-    uiExports.node.addDependency(webSocketApi);
+    // uiExports.node.addDependency(webSocketApi);
     uiExports.node.addDependency(workspaceApi);
 
     const clientUiExports = new UiExportsConstruct(this, "ClientUIExportAsset", {
       portalBucketName: props.clientPortalBucketName,
       uiProps: {
-        websocket: props.apiConstructOutputs.wsEndpoint,
-        workspaceWebsocket: this.wsEndpoint,
+        // workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,
         oidcIssuer: props.oidcIssuer,
@@ -245,11 +246,12 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         embeddingEndpoint: embeddingEndpoint,
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
-        oidcRegion: props.oidcRegion
+        oidcRegion: props.oidcRegion,
+        albUrl: props.albUrl
       },
     });
 
-    clientUiExports.node.addDependency(webSocketApi);
+    // clientUiExports.node.addDependency(webSocketApi);
     clientUiExports.node.addDependency(workspaceApi);
 
   }

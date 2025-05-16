@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import CommonLayout from 'src/layout/CommonLayout';
 import Message from './components/Message';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
@@ -23,9 +23,7 @@ import {
   Textarea,
   Toggle,
 } from '@cloudscape-design/components';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { identity } from 'lodash';
-import ConfigContext from 'src/context/config-context';
 import {
   LLM_BOT_COMMON_MODEL_LIST,
   MODEL_TYPE_LIST,
@@ -60,7 +58,8 @@ import {
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageDataType, SessionMessage } from 'src/types';
-import { getCredentials, isTokenExpired, isValidJson } from 'src/utils/utils';
+import { buildUrlParams, getCredentials, isTokenExpired, isValidJson } from 'src/utils/utils';
+import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
   messageId: string;
@@ -136,12 +135,13 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const localApiKeyArn = localStorage.getItem(API_KEY_ARN);
   const localGuardrailIdentifier = localStorage.getItem(GUARDRAIL_IDENTIFIER);
   const localGuardrailVersion = localStorage.getItem(GUARDRAIL_VERSION);
-  const config = useContext(ConfigContext);
+  // const config = useContext(ConfigContext);
   const isFirstRender = useRef(true);
   const { t } = useTranslation();
   // const auth = useAuth();
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [guardrailVersionError, setGuardrailVersionError] = useState('');
+  // const [readyState, setReadyState] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([
     {
       messageId: uuidv4(),
@@ -152,22 +152,27 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       },
     },
   ]);
+  // const eventSourceRef = useRef<EventSource | null>(null);
+  // const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [userMessage, setUserMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
   if(isTokenExpired()){
     window.location.href = '/login'
     return null
   }
-  let wsUrl = `${config?.websocket}?idToken=${getCredentials().idToken}&provider=${oidc.provider}&clientId=${config?.oidcClientId}&poolId=${config?.oidcPoolId}`;
-  if (oidc.provider === 'authing') {
-    wsUrl = `${config?.websocket}?idToken=${getCredentials().access_token}&provider=${oidc.provider}&clientId=${oidc.clientId}&redirectUri=${oidc.redirectUri}`;
-  }
-  const { lastMessage, sendMessage, readyState } = useWebSocket(wsUrl, {
-    onOpen: () => console.log('opened'),
-    shouldReconnect: () => true,
-  });
+  // let heartbeatTimer: NodeJS.Timeout | null = null;
+  // let isConnected = false;
+  // let sseUrlPrefix = `?idToken=${getCredentials().idToken}&provider=${oidc.provider}&clientId=${config?.oidcClientId}&poolId=${config?.oidcPoolId}`;
+  // if (oidc.provider === 'authing') {
+  //   sseUrlPrefix = `?idToken=${getCredentials().access_token}&provider=${oidc.provider}&clientId=${oidc.clientId}&redirectUri=${oidc.redirectUri}`;
+  // }
+  // const { lastMessage, sendMessage, readyState } = useWebSocket(wsUrl, {
+  //   onOpen: () => console.log('opened'),
+  //   shouldReconnect: () => true,
+  // });
   const [currentAIMessage, setCurrentAIMessage] = useState('');
   const [currentMonitorMessage, setCurrentMonitorMessage] = useState('');
   const [currentAIMessageId, setCurrentAIMessageId] = useState('');
@@ -278,20 +283,65 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [additionalConfigError, setAdditionalConfigError] = useState('');
   const [apiEndpointError, setApiEndpointError] = useState('');
   const [apiKeyArnError, setApiKeyArnError] = useState('');
+  const [lastMessage, _] = useState<MessageDataType | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
     { label: string; value: string }[]
   >([]);
 
-  const connectionStatus = {
-    [ReadyState.CONNECTING]: 'loading',
-    [ReadyState.OPEN]: 'success',
-    [ReadyState.CLOSING]: 'closing',
-    [ReadyState.CLOSED]: 'error',
-    [ReadyState.UNINSTANTIATED]: 'pending',
-  }[readyState];
+  // const [status, setStatus] = useState<'in-progress'|'success'|'error'>('in-progress');
 
-  const fetchData = useAxiosRequest();
+  // const connectionStatus = {
+  //   [ReadyState.CONNECTING]: 'loading',
+  //   [ReadyState.OPEN]: 'success',
+  //   [ReadyState.CLOSING]: 'closing',
+  //   [ReadyState.CLOSED]: 'error',
+  //   [ReadyState.UNINSTANTIATED]: 'pending',
+  // }[readyState];
+
+  // const fetchData = useAxiosRequest();
+  // const fetchData = useAxiosSSERequest();
+  const fetchAPIData = useAxiosRequest();
+  const [requestContent, setRequestContent] = useState<any>({
+    query: "",
+    entry_type: 'common',
+    session_id: "",
+    user_id: "",
+    chatbot_config: {
+      max_rounds_in_memory: parseInt(maxRounds),
+      group_name: 'Admin',
+      chatbot_id: chatbotOption.value,
+      chatbot_mode: 'agent',
+      use_history: true,
+      enable_trace: false,
+      use_websearch: true,
+      google_api_key: '',
+      default_llm_config: {
+        model_id: modelOption,
+        endpoint_name: '',
+        provider: modelType.value,
+        base_url: '',
+        api_key_arn:  '',
+        model_kwargs: {
+          temperature: temperature,
+          max_tokens: maxToken,
+        },
+      },
+      default_retriever_config: {
+        private_knowledge: {
+          bm25_search_top_k: topKKeyword,
+          bm25_search_score: keywordScore,
+          vector_search_top_k: topKEmbedding,
+          vector_search_score: embeddingScore,
+          rerank_top_k: topKRerank,
+        },
+      },
+      agent_config: {
+        only_use_rag_tool: onlyRAGTool,
+      },
+    },
+  });
   const startNewChat = () => {
     [
       CURRENT_CHAT_BOT,
@@ -336,7 +386,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
   const getWorkspaceList = async () => {
     try {
-      const data = await fetchData({
+      const data = await fetchAPIData({
         url: 'chatbot-management/chatbots',
         method: 'get',
       });
@@ -383,7 +433,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const getSessionHistoryById = async () => {
     try {
       setLoadingHistory(true);
-      const data = await fetchData({
+      const data = await fetchAPIData({
         url: `sessions/${historySessionId}/messages`,
         method: 'get',
         params: {
@@ -430,6 +480,27 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
   useEffect(() => {
+    // let timer: NodeJS.Timeout;
+
+    // const checkHeartbeat = async () => {
+    //   try {
+    //     const response = await fetchData({
+    //       url: `/health`,
+    //       method: 'get',
+    //     });
+    //     if (response.message ==='OK') {
+    //       setReadyState(true);
+    //     } else {
+    //       setReadyState(false);
+    //     }
+    //   } catch (error) {
+    //     setReadyState(false);
+    //   }
+    // };
+    // checkHeartbeat();
+
+    // timer = setInterval(checkHeartbeat, HEARTBEAT_INTERVAL);
+
     const initializeChatbot = async () => {
       setLoadingChatBots(true);
       if (historySessionId) {
@@ -444,7 +515,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
     const fetchEndpoints = async () => {
       const tempModels: { label: string; value: string }[] = [];
-      const data = await fetchData({
+      const data = await fetchAPIData({
         url: 'model-management/endpoints',
         method: 'get',
       });
@@ -464,7 +535,21 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     initializeChatbot();
     setLoadingChatBots(false);
     setModelList(LLM_BOT_COMMON_MODEL_LIST);
+
+
+    
+    // return () => {
+    //   if (eventSourceRef.current) {
+    //     eventSourceRef.current.close();
+    //   }
+    //   clearInterval(timer)};
   }, []);
+
+
+  // useEffect(()=>{
+  //   const es = new EventSource(`http://${config?.albUrl}/stream?${toQueryString(message)}}`);
+  //   eventSourceRef.current = es;
+  // },[toQueryString(message)])
 
   useEffect(()=>{
     if(guardrailVersion.trim()){
@@ -632,13 +717,17 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
 
   useEffect(() => {
     if (lastMessage !== null) {
-      const message: MessageDataType = JSON.parse(lastMessage.data);
-      if (message.message_type === 'MONITOR') {
-        setCurrentMonitorMessage((prev) => {
-          return prev + (message?.message ?? '');
-        });
-      } else {
-        handleAIMessage(message);
+      try {
+        const message = JSON.parse(lastMessage as unknown as string) as MessageDataType;
+        if (message.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (message?.message ?? '');
+          });
+        } else {
+          handleAIMessage(message);
+        }
+      } catch (error) {
+        console.error('Error parsing message:', error);
       }
     }
   }, [lastMessage]);
@@ -659,12 +748,20 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           },
         ];
       });
+      // Reset current messages after adding to history
+      setCurrentAIMessage('');
+      setCurrentMonitorMessage('');
+      setIsMessageEnd(false);
     }
   }, [isMessageEnd]);
 
-  const handleClickSendMessage = (customQuery?: string) => {
+  const handleClickSendMessage = async (customQuery?: string) => {
     if (aiSpeaking) {
       return;
+    }
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
     }
 
     const messageToSend = customQuery ?? userMessage;
@@ -674,9 +771,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       return;
     }
     // validate websocket status
-    if (readyState !== ReadyState.OPEN) {
-      return;
-    }
+    // if (readyState !== ReadyState.OPEN) {
+    //   return;
+    // }
     // validate model settings
     if (
       modelType.value === 'Bedrock API' ||
@@ -883,7 +980,12 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
 
     console.info('send message:', message);
-    sendMessage(JSON.stringify(message));
+    setRequestContent(message);
+    // await fetchData({
+    //   url: `/stream?${toQueryString(message)}`,
+    //   method: 'get'
+    // })
+    // sendMessage(JSON.stringify(message));
 
     // Only add to messages if it's a new message (not regeneration)
     if (!customQuery) {
@@ -905,6 +1007,34 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
 
+  const readyState = useAxiosSSERequest({
+    params: buildUrlParams(requestContent),
+    onMessage: (data) => {
+      console.log('Received SSE message:', data);
+      try {
+        const message = JSON.parse(data);
+        if (message.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (message?.message ?? '');
+          });
+        } else {
+          handleAIMessage(message);
+        }
+      } catch (error) {
+        console.error('Error parsing SSE message:', error);
+      }
+    },
+    onError: (err) => {
+      console.error('SSE failed', err);
+      // Only set error state if we're not in the middle of a message
+      if (!aiSpeaking) {
+        // setStatus('error');
+      }
+    },
+  });
+
+
+
   const useLocalStorageValue = (key: string) => {
     const [value, setValue] = useState(() => localStorage.getItem(key));
   
@@ -912,7 +1042,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       const interval = setInterval(() => {
         const currentValue = localStorage.getItem(key);
         setValue((prev) => (prev !== currentValue ? currentValue : prev));
-      }, 100); // 监听间隔可以按需调整
+      }, 100);
   
       return () => clearInterval(interval);
     }, [key]);
@@ -991,7 +1121,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     const newFeedback = currentFeedback === 'thumb_up' ? null : 'thumb_up';
 
     try {
-      await fetchData({
+      await fetchAPIData({
         url: `sessions/${sessionId}/messages/${messages[index].messageId}/feedback`,
         method: 'post',
         data: {
@@ -1012,7 +1142,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     const newFeedback = currentFeedback === 'thumb_down' ? null : 'thumb_down';
 
     try {
-      await fetchData({
+      await fetchAPIData({
         url: `sessions/${sessionId}/messages/${messages[index].messageId}/feedback`,
         method: 'post',
         data: {
@@ -1047,7 +1177,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     };
 
     console.info('Send stop message:', message);
-    sendMessage(JSON.stringify(message));
+    // sendMessage(JSON.stringify(message));
   };
 
   // Update the render send button section
@@ -1087,7 +1217,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             multiple
           />
           <Button
-            disabled={readyState !== ReadyState.OPEN}
+            disabled={readyState!== 'success'}
             onClick={() => handleClickSendMessage()}
             ariaLabel={t('button.send')}
           >
@@ -1162,7 +1292,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                   <SpaceBetween size="xs" direction="horizontal">
                     <Button
                       variant="primary"
-                      disabled={aiSpeaking || readyState !== ReadyState.OPEN}
+                      disabled={aiSpeaking || readyState !== 'success'}
                       onClick={() => {
                         startNewChat();
                       }}
@@ -1945,8 +2075,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                       </div>
                       <div className="flex align-center gap-10">
                         <Box variant="p">{t('server')}: </Box>
-                        <StatusIndicator type={connectionStatus as any}>
-                          {t(connectionStatus)}
+                        <StatusIndicator type={readyState || 'in-progress'}>
+                          {t(readyState == 'in-progress' ? 'connecting': (readyState || 'connecting'))}
                         </StatusIndicator>
                       </div>
                     </div>

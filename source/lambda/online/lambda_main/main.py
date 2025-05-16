@@ -1,24 +1,18 @@
+import json
 import os
+import time
 import traceback
 import uuid
 from datetime import datetime, timezone
 
 import boto3
-from botocore.exceptions import ClientError
-from shared.constant import EntryType, ParamType, Threshold,WSConnectionSignal
-from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
-from shared.utils.lambda_invoke_utils import (
-    chatbot_lambda_call_wrapper,
-    is_running_local,
-    send_trace
-)
-from shared.utils.logger_utils import get_logger
-from shared.utils.websocket_utils import set_stop_signal, load_ws_client, clear_stop_signal
-from lambda_main.main_utils.online_entries import get_entry
-from common_logic.common_utils.response_utils import process_response
-from shared.utils.secret_utils import get_secret_value
-import common_logic.common_utils.warmup_utils
 
+from common_logic.common_utils.ddb_utils import DynamoDBChatMessageHistory
+from common_logic.common_utils.response_utils import process_response
+from lambda_main.main_utils.online_entries import get_entry
+from shared.constant import EntryType, ParamType, Threshold
+from shared.utils.lambda_invoke_utils import send_trace
+from shared.utils.logger_utils import get_logger
 
 logger = get_logger("main")
 
@@ -44,11 +38,6 @@ connect_domain_id = os.environ.get("CONNECT_DOMAIN_ID", "")
 connect_user_arn = os.environ.get("CONNECT_USER_ARN", "")
 kb_enabled = os.environ["KNOWLEDGE_BASE_ENABLED"]
 kb_type = os.environ["KNOWLEDGE_BASE_TYPE"]
-
-
-
-
-
 
 def create_ddb_history_obj(session_id: str, user_id: str, client_type: str, group_name: str, chatbot_id: str) -> DynamoDBChatMessageHistory:
     """Create a DynamoDBChatMessageHistory object
@@ -147,7 +136,6 @@ def compose_connect_body(event_body: dict, context: dict):
     agent_flow_body["ddb_history_obj"] = ddb_history_obj
     agent_flow_body["stream"] = False
     agent_flow_body["custom_message_id"] = ""
-    agent_flow_body["ws_connection_id"] = ""
     agent_flow_body["chatbot_config"] = {
         "chatbot_mode": "agent",
         "group_name": "Admin",
@@ -181,11 +169,11 @@ def assemble_event_body(event_body: dict, context: dict):
         dict: The assembled event body with the extracted and generated information.
     """
     body = {}
-    request_timestamp = context["request_timestamp"]
+    request_timestamp = int(time.time())
     body["request_timestamp"] = request_timestamp
     body["client_type"] = event_body.get("client_type", "default_client_type")
     body["session_id"] = event_body.get(
-        "session_id", f"session_{int(request_timestamp)}")
+        "session_id", f"session_str({request_timestamp})")
     body["user_id"] = event_body.get("user_id", "default_user_id")
     body["message_id"] = event_body.get("custom_message_id", str(uuid.uuid4()))
     body["group_name"] = event_body.get(
@@ -216,6 +204,7 @@ def connect_case_event_handler(event_body: dict, context: dict, executor):
         return None
 
     executor_body = compose_connect_body(event_body, context)
+    # Await the executor function
     executor_response: dict = executor(executor_body)
     response_message = executor_response["message"]["content"]
     logger.info(response_message)
@@ -261,7 +250,7 @@ def restapi_event_handler(event_body: dict, context: dict, entry_executor):
     ddb_history_obj = create_ddb_history_obj(
         assembled_body["session_id"], assembled_body["user_id"], assembled_body["client_type"], assembled_body["group_name"], assembled_body["chatbot_id"])
     chat_history = ddb_history_obj.messages_as_langchain
-
+    event_body = json.loads(event_body['body']);
     standard_event_body = {
         "query": event_body["query"],
         "entry_type": EntryType.COMMON,
@@ -279,7 +268,6 @@ def restapi_event_handler(event_body: dict, context: dict, entry_executor):
     standard_event_body["chatbot_config"]["chatbot_id"] = assembled_body["chatbot_id"]
     standard_event_body["message_id"] = assembled_body["message_id"]
     standard_event_body["custom_message_id"] = ""
-    standard_event_body["ws_connection_id"] = ""
 
     standard_response = entry_executor(standard_event_body)
 
@@ -294,31 +282,25 @@ def restapi_event_handler(event_body: dict, context: dict, entry_executor):
     return aics_response
 
 
-def default_event_handler(event_body: dict, context: dict, entry_executor):
+def default_event_handler(event_body: dict, context: dict):
     """
-    Handles the default event (WebSocket API) processing for the lambda function.
+    Handles the default streaming event.
 
     This function is responsible for processing events that do not require special handling, such as those from the WebSocket API. It assembles the event body, loads the WebSocket client, and prepares the DynamoDB history object and chat history for processing. The event body is then passed to the entry executor for further processing.
 
     Args:
         event_body (dict): The event body received from the Lambda function.
         context (dict): The context object passed to the Lambda function.
-        entry_executor (function): A function that executes the processing of the event, taking the standard event body as input.
 
     Returns:
         dict: Returns a dictionary with the response from the entry executor.
     """
-    ws_connection_id = context.get("ws_connection_id")
     assembled_body = assemble_event_body(event_body, context)
-    load_ws_client(websocket_url)
 
     ddb_history_obj = create_ddb_history_obj(
         assembled_body["session_id"], assembled_body["user_id"], assembled_body["client_type"], assembled_body["group_name"], assembled_body["chatbot_id"])
     chat_history = ddb_history_obj.messages_as_langchain
-
-    event_body["stream"] = context["stream"]
     event_body["chat_history"] = chat_history
-    event_body["ws_connection_id"] = ws_connection_id
     event_body["custom_message_id"] = assembled_body["message_id"]
     event_body["message_id"] = assembled_body["message_id"]
     event_body["ddb_history_obj"] = ddb_history_obj
@@ -329,26 +311,18 @@ def default_event_handler(event_body: dict, context: dict, entry_executor):
     event_body["kb_enabled"] = kb_enabled
     event_body["kb_type"] = kb_type
 
-    # Show debug info directly in local mode
-    if is_running_local():
-        response: dict = entry_executor(event_body)
-        return response
-    else:
-        response: dict = entry_executor(event_body)
-        return response
+    return event_body
 
 
-@chatbot_lambda_call_wrapper
 def lambda_handler(event_body: dict, context: dict):
     logger.info(f"Raw event_body: {event_body}")
-    if "message_type" in event_body and WSConnectionSignal.STOP == event_body["message_type"]:
-        ws_connection_id = context["ws_connection_id"]
-        logger.info("Received stop signal for connection %s", ws_connection_id)
-        set_stop_signal(ws_connection_id)
-        stop_message = f"Stop signal has been set for WebSocket connection {ws_connection_id}"
-        return {"message": stop_message}
+    # if "message_type" in event_body and WSConnectionSignal.STOP == event_body["message_type"]:
+    #     ws_connection_id = context["ws_connection_id"]
+    #     logger.info("Received stop signal for connection %s", ws_connection_id)
+    #     set_stop_signal(ws_connection_id)
+    #     stop_message = f"Stop signal has been set for WebSocket connection {ws_connection_id}"
+    #     return {"message": stop_message}
 
-    # set GROUP_NAME for dmaa model initialize
     os.environ['GROUP_NAME'] = event_body.get(
         "chatbot_config", {}).get("group_name", "Admin")
     param_type = event_body.get("param_type", ParamType.NEST).lower()
@@ -356,27 +330,29 @@ def lambda_handler(event_body: dict, context: dict):
         __convert_flat_param_to_dict(event_body)
     entry_type = event_body.get("entry_type", EntryType.COMMON).lower()
     try:
+        # Await the get_entry function
         entry_executor = get_entry(entry_type)
-        stream = context["stream"]
+        stream = event_body.get("stream")
         if event_body.get("source", "") == "aws.cases":
             # Amazon Connect case event
             return connect_case_event_handler(event_body, context, entry_executor)
         elif not stream:
             # Restful API
             return restapi_event_handler(event_body, context, entry_executor)
-        else:
-            # WebSocket API
-            return default_event_handler(event_body, context, entry_executor)
+        # else:
+        #     # WebSocket API
+        #     event_body = default_event_handler(event_body, context)
+        #     return entry_executor(event_body)
     except Exception as e:
         error_info = '{}: {}'.format(type(e).__name__, e)
         error_response = {"answer": error_info, "extra_response": {}}
         enable_trace = event_body.get(
             "chatbot_config", {}).get("enable_trace", True)
         error_trace = f"\n### Error trace\n\n{traceback.format_exc()}\n\n"
-        load_ws_client(websocket_url)
+        # load_ws_client(websocket_url)
         send_trace(error_trace, enable_trace=enable_trace)
         process_response(event_body, error_response)
-        clear_stop_signal(context["ws_connection_id"])
+        # clear_stop_signal(context["ws_connection_id"])
         logger.error(f"{traceback.format_exc()}\nAn error occurred: {error_info}")
         return {"error": error_info}
 
@@ -403,24 +379,3 @@ def __convert_flat_param_to_dict(event_body: dict):
     event_body["chatbot_config"]["private_knowledge_config"]["score"] = event_body.get("private_knowledge_score", Threshold.ALL_KNOWLEDGE_IN_AGENT_THRESHOLD)
     event_body["chatbot_config"]["agent_config"] = event_body["chatbot_config"].get("agent_config", {})
     event_body["chatbot_config"]["agent_config"]["only_use_rag_tool"] = event_body.get("only_use_rag_tool", True)
-
-
-# def handle_websocket_message(event: Dict[str, Any]) -> None:
-#     try:
-#         connection_id = event["requestContext"]["connectionId"]
-#         body = json.loads(event.get("body", "{}"))
-#         message_type = body.get("message_type")
-
-#         if message_type == "STOP":
-#             logger.info(f"Received stop signal for connection {connection_id}")
-#             stop_signal_manager.set_stop_signal(connection_id)
-#             return {
-#                 "statusCode": 200,
-#                 "body": json.dumps({"message": "Stop signal received"})
-#             }
-#     except Exception as e:
-#         logger.error(f"Error handling WebSocket message: {str(e)}")
-#         return {
-#             "statusCode": 500,
-#             "body": json.dumps({"error": "Internal server error"})
-#         }

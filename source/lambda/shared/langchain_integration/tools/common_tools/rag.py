@@ -16,9 +16,9 @@ from langchain.retrievers.merger_retriever import MergerRetriever
 from shared.langchain_integration.models.chat_models import (
     ReasonModelResult,ReasonModelStreamResult
 )
-from shared.utils.asyncio_utils import run_coroutine_with_new_el
+# from shared.utils.asyncio_utils import run_coroutine_with_new_el
 
-logger = get_logger(__name__)
+logger = get_logger("rag_tool")
 
 def filter_response(res: Iterable, state: dict):
     """
@@ -148,9 +148,18 @@ def rag_tool(retriever_config: dict, query=None):
     # qd_retriever = OpensearchHybridQueryDocumentRetriever.from_config(
     #     **retriever_params
     # )
-    retrieved_contexts:List[Document] = run_coroutine_with_new_el(
-        qd_retriever.ainvoke(retriever_params["query"])
-    )
+    try:
+        # Set a reasonable timeout for the retrieval operation
+        retrieved_contexts:List[Document] = asyncio.run(qd_retriever.ainvoke(retriever_params["query"]))
+
+    except TimeoutError as e:
+        logger.warning(f"RAG retrieval timed out: {e}")
+        # Return empty results to continue processing
+        retrieved_contexts = []
+    except Exception as e:
+        logger.error(f"Error during RAG retrieval: {e}")
+        # Return empty results to continue processing
+        retrieved_contexts = []
 
     # output = retrieve_fn(retriever_params)
     # top_k = retriever_config.get("top_k", Threshold.TOP_K_RETRIEVALS)
@@ -241,4 +250,3 @@ def rag_tool(retriever_config: dict, query=None):
             output = filter_response(output, state)
         
         return output, output
-

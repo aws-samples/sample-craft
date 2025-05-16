@@ -8,7 +8,6 @@ from typing import Annotated, Any, List, TypedDict, Union
 from common_logic.common_utils.chatbot_utils import ChatbotManager
 from common_logic.common_utils.ddb_utils import custom_index_desc
 from common_logic.common_utils.response_utils import (
-    clear_stop_signal,
     process_response,
 )
 from common_logic.common_utils.serialization_utils import JSONEncoder
@@ -34,7 +33,6 @@ from shared.langchain_integration.retrievers import (
 )
 from shared.langchain_integration.tools import ToolManager
 from shared.utils.lambda_invoke_utils import (
-    is_running_local,
     node_monitor_wrapper,
     send_trace,
 )
@@ -179,9 +177,11 @@ def intention_detection(state: ChatbotState):
     qq_retriever = MergerRetriever(retrievers=qq_retrievers)
 
     logger.info("##### QQ match running")
-    qq_retrievered: List[Document] = run_coroutine_with_new_el(
-        qq_retriever.ainvoke(state["query"])
-    )
+    qq_retrievered = run_coroutine_with_new_el(qq_retriever.ainvoke(state["query"]))
+    # if isinstance(qq_retrievered_task, asyncio.Task):
+    #     qq_retrievered = asyncio.get_event_loop().run_until_complete(qq_retrievered_task)
+    # else:
+    #     qq_retrievered = qq_retrievered_task
 
     qq_match_results = []  # used in rag tool
     qq_match_threshold = qq_match_config["qq_match_threshold"]
@@ -195,7 +195,7 @@ def intention_detection(state: ChatbotState):
             send_trace(
                 f"\n\n**similar query found**\n\n{doc_md}",
                 state["stream"],
-                state["ws_connection_id"],
+                None, 
                 state["enable_trace"],
             )
             query_content = doc.metadata["answer"]
@@ -280,13 +280,13 @@ def intention_detection(state: ChatbotState):
         send_trace(
             f"all knowledge retrieved:\n{chr(10).join(info_to_log)}",
             state["stream"],
-            state["ws_connection_id"],
+            None,
             state["enable_trace"],
         )
     send_trace(
         f"{markdown_table}",
         state["stream"],
-        state["ws_connection_id"],
+        None,
         state["enable_trace"],
     )
 
@@ -411,7 +411,7 @@ def agent(state: ChatbotState):
     send_trace(
         f"\n\n**agent_current_output:** \n{agent_message}\n\n",
         state["stream"],
-        state["ws_connection_id"],
+        None,
     )
     # Case 2: Agent decides no more tools needed
     if not agent_message.tool_calls:
@@ -484,6 +484,9 @@ def final_results_preparation(state: ChatbotState):
         answer = re.sub(
             "<thinking>.*?</thinking>", "", answer, flags=re.S
         ).strip()
+        state["answer"] = answer
+    elif hasattr(answer, '__iter__') and not isinstance(answer, str):
+        # Keep the iterable as is to preserve streaming
         state["answer"] = answer
     app_response = process_response(state["event_body"], state)
     return {"app_response": app_response}
@@ -717,11 +720,6 @@ def common_entry(event_body):
     if app is None:
         app = build_graph(ChatbotState)
 
-    # debuging
-    if is_running_local():
-        with open("common_entry_workflow.png", "wb") as f:
-            f.write(app.get_graph().draw_mermaid_png())
-
     ################################################################################
     # prepare inputs and invoke graph
     event_body["chatbot_config"] = CommonConfigParser.from_chatbot_config(
@@ -740,7 +738,7 @@ def common_entry(event_body):
     )
     stream = event_body["stream"]
     message_id = event_body["custom_message_id"]
-    ws_connection_id = event_body["ws_connection_id"]
+    # ws_connection_id = event_body["ws_connection_id"]
     enable_trace = chatbot_config["enable_trace"]
     agent_config = event_body["chatbot_config"]["agent_config"]
     # rag_config = event_body["chatbot_config"]["rag_config"]
@@ -783,7 +781,6 @@ def common_entry(event_body):
             "message_id": message_id,
             "chat_history": chat_history,
             "agent_tool_history": [],
-            "ws_connection_id": ws_connection_id,
             "debug_infos": {},
             "extra_response": {},
             "qq_match_results": [],
@@ -794,7 +791,7 @@ def common_entry(event_body):
         },
         config={"recursion_limit": 20},
     )
-    clear_stop_signal(ws_connection_id)
+    # clear_stop_signal(ws_connection_id)
     return response["app_response"]
 
 

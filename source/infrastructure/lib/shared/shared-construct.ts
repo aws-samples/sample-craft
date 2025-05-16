@@ -34,6 +34,7 @@ export interface SharedConstructOutputs {
   indexTable: dynamodb.Table;
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
+
   vpc?: IVpc;
   privateSubnets?: ISubnet[];
   securityGroups?: SecurityGroup[];
@@ -47,14 +48,16 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public indexTable: dynamodb.Table;
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
+
   public vpc?: IVpc;
   public privateSubnets?: ISubnet[];
   public securityGroups?: SecurityGroup[];
   public useOpensearchInVpc: boolean;
   public customDomainSecretArn: string;
+
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
-
+    console.log(props);
     const iamHelper = new IAMHelper(this, "iam-helper");
     let vpcConstruct;
 
@@ -86,6 +89,7 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
     const resultBucket = new s3.Bucket(this, "ai-customer-service-result-bucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
+
 
     if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
       this.useOpensearchInVpc = false;

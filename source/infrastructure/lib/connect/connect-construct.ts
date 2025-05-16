@@ -1,17 +1,11 @@
-import { StackProps, Duration, NestedStack } from "aws-cdk-lib";
+import { Duration, NestedStack } from "aws-cdk-lib";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
-import { Function } from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
 import { Rule } from "aws-cdk-lib/aws-events";
 import { SqsQueue } from "aws-cdk-lib/aws-events-targets";
-import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
-
-export interface ConnectProps extends StackProps {
-  readonly lambdaOnlineMain: Function;
-}
 
 export class ConnectConstruct extends NestedStack {
-  constructor(scope: Construct, id: string, props: ConnectProps) {
+  constructor(scope: Construct, id: string) {
     super(scope, id);
 
     const dlq = new Queue(this, "ConnectDLQ", {
@@ -45,8 +39,9 @@ export class ConnectConstruct extends NestedStack {
     );
 
     connectRule.addTarget(new SqsQueue(messageQueue));
-    props.lambdaOnlineMain.addEventSource(
-      new SqsEventSource(messageQueue, { batchSize: 10 }),
-    );
+    // // TODO: consume the message from ECS Fargate
+    // props.lambdaOnlineMain.addEventSource(
+    //   new SqsEventSource(messageQueue, { batchSize: 10 }),
+    // );
   }
 }

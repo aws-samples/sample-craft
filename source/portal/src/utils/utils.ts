@@ -111,3 +111,22 @@ export const isTokenExpired = (): boolean => {
     return true;
   }
 }
+
+// export const toQueryString = (message: Record<string, any>): string  =>{
+//   const params = new URLSearchParams();
+//   for (const [key, value] of Object.entries(message)) {
+//     const encodedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+//     params.append(key, encodedValue);
+//   }
+//   return params.toString(); 
+// }
+
+export const buildUrlParams = (params: Record<string, any>): string => {
+  const urlParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      urlParams.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+    }
+  });
+  return urlParams.toString();
+}

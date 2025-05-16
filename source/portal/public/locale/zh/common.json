@@ -335,5 +335,6 @@
     "guardrailVersion": "Guardrail Version",
     "guardrailIdentifierDesc": "请输入Bedrock控制台配置的Guardrail Identifier",
     "guardrailVersionDesc": "请输入Bedrock控制台配置的Guardrail Version",
-    "conditionalOption": "条件可选"
+    "conditionalOption": "条件可选",
+    "connecting": "连接中..."
 }

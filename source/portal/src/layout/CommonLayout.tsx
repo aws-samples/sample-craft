@@ -69,7 +69,7 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   const [fullLogoutUrl, setFullLogoutUrl] = useState('');
   const config = useContext(ConfigContext);
   const navigate = useNavigate();
-  const [mode ,setMode]= useState(localStorage.getItem(MODE) || 'normal')
+  const [mode, setMode] = useState(localStorage.getItem(MODE) || 'normal')
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
@@ -81,10 +81,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
     });
   };
 
-  useEffect(()=>{
-      setMode(mode)
-      localStorage.setItem(MODE, mode)
-  },[mode])
+  useEffect(() => {
+    setMode(mode)
+    localStorage.setItem(MODE, mode)
+  }, [mode])
 
   useEffect(() => {
     let idToken = ""
@@ -93,15 +93,16 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
     if (oidc) {
       const oidcRes = JSON.parse(oidc)
       const authToken = localStorage.getItem(`${OIDC_PREFIX}${oidcRes.provider}.${oidcRes.clientId}`)
-      if (authToken){
+      if (authToken) {
         const token = JSON.parse(authToken)
-      if(oidcRes.provider === OIDC_PROVIDER.AUTHING){
-        idToken = token.id_token
-        const idTokenRes: any = jwtDecode(idToken)
-        displayName = idTokenRes?.name || idTokenRes?.email || idTokenRes?.nickname || displayName
-      } else {
-        displayName = oidcRes.username
-      }}
+        if (oidcRes.provider === OIDC_PROVIDER.AUTHING) {
+          idToken = token.id_token
+          const idTokenRes: any = jwtDecode(idToken)
+          displayName = idTokenRes?.name || idTokenRes?.email || idTokenRes?.nickname || displayName
+        } else {
+          displayName = oidcRes.username
+        }
+      }
     }
 
     if (ZH_LANGUAGE_LIST.includes(i18n.language)) {
@@ -145,10 +146,10 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   const kbItem =
     config?.kbEnabled === 'true'
       ? {
-          type: 'link',
-          text: t('docLibrary'),
-          href: ROUTES.Library,
-        }
+        type: 'link',
+        text: t('docLibrary'),
+        href: ROUTES.Library,
+      }
       : null;
 
   const layoutItems = kbItem
@@ -158,18 +159,20 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
   const currentActiveHref = location.pathname;
 
   return (
-      <>
+    <>
       <TopNavigation
-        i18nStrings={{searchIconAriaLabel: t('menu.search') || '',
+        i18nStrings={{
+          searchIconAriaLabel: t('menu.search') || '',
           searchDismissIconAriaLabel: t('menu.closeSearch') || '',
           overflowMenuTriggerText: t('menu.more') || '',
           overflowMenuTitleText: t('menu.all') || '',
           overflowMenuBackIconAriaLabel: t('menu.back') || '',
-          overflowMenuDismissIconAriaLabel: t('menu.closeMenu') || '',}}
+          overflowMenuDismissIconAriaLabel: t('menu.closeMenu') || '',
+        }}
         identity={{
           href: ROUTES.Home,
           title: t('name'),
-        }}    
+        }}
         utilities={[
           // {
           //   type: "button",
@@ -289,7 +292,7 @@ const CommonLayout: React.FC<CommonLayoutProps> = ({
         }
         content={<>{isLoading ? <Spinner /> : children}</>}
       />
-      </>
+    </>
   );
 };
 

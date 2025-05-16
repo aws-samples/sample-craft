@@ -24,6 +24,8 @@ import { ChatStack, ChatStackOutputs } from "../lib/chat/chat-stack";
 import { WorkspaceStack } from "../lib/workspace/workspace-stack";
 import { UIStack } from "../lib/ui/ui-stack";
 import { Fn } from "aws-cdk-lib";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import { Aws } from "aws-cdk-lib";
 
 dotenv.config();
 
@@ -46,6 +48,7 @@ export class RootStack extends Stack {
   public apiConstruct: ApiConstructOutputs;
   public modelConstruct: ModelConstructOutputs;
   public config: SystemConfig;
+  public chatStack: ChatStack | undefined;
   // private isChinaRegion: boolean;
 
   constructor(scope: Construct, id: string, props: RootStackProps) {
@@ -79,15 +82,19 @@ export class RootStack extends Stack {
       knowledgeBaseStackOutputs = knowledgeBaseStack;
     }
 
-    if (props.config.chat.enabled) {
-      const chatStack = new ChatStack(this, "chat-stack", {
+    // if (props.config.chat.enabled) {
+      this.chatStack = new ChatStack(this, "chat-stack", {
         config: props.config,
         sharedConstructOutputs: sharedConstruct,
         modelConstructOutputs: modelConstruct,
         domainEndpoint: knowledgeBaseStackOutputs.aosDomainEndpoint,
       });
-      chatStackOutputs = chatStack;
-    }
+      chatStackOutputs = this.chatStack;
+      new CfnOutput(this, "ALB Endpoint Address", {
+        value: this.chatStack.albDomainEndpoint,
+      });
+
+    // }
     
     const apiConstruct = new ApiConstruct(this, "api-construct", {
       config: props.config,
@@ -111,9 +118,9 @@ export class RootStack extends Stack {
       value: props.portalUrl,
       description: "Web portal url",
     });
-    new CfnOutput(this, "WebSocket Endpoint Address", {
-      value: apiConstruct.wsEndpoint,
-    });
+    // new CfnOutput(this, "WebSocket Endpoint Address", {
+    //   value: apiConstruct.wsEndpoint,
+    // });
     if (!isChinaRegion) {
       new CfnOutput(this, "OIDC Client ID", {
         value: props.oidcClientId || '',
@@ -160,6 +167,95 @@ const rootStack = new RootStack(app, stackName, {
   }),
 });
 
+
+if (rootStack.chatStack?.loadBalancer) {
+  const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
+  const existingConfig = cfnDistribution.distributionConfig as cloudfront.CfnDistribution.DistributionConfigProperty;
+  
+  // Add ALB origin to existing origins
+  const existingOrigins = Array.isArray(existingConfig.origins) 
+    ? existingConfig.origins as cloudfront.CfnDistribution.OriginProperty[]
+    : [];
+  
+  const s3Config = existingOrigins[0]?.s3OriginConfig as cloudfront.CfnDistribution.S3OriginConfigProperty;
+  
+  const newOrigins = [
+    // Convert existing S3 origin to use PascalCase properties
+    {
+      Id: existingOrigins[0]?.id,
+      DomainName: existingOrigins[0]?.domainName,
+      S3OriginConfig: {
+        OriginAccessIdentity: s3Config?.originAccessIdentity
+      }
+    },
+    // Add ALB origin
+    {
+      Id: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
+      DomainName: rootStack.chatStack.loadBalancer.loadBalancerDnsName,
+      CustomOriginConfig: {
+        HTTPPort: 80,
+        HTTPSPort: 443,
+        OriginProtocolPolicy: 'http-only',
+        OriginSSLProtocols: ['TLSv1.2'],
+        OriginKeepaliveTimeout: 60,
+        OriginReadTimeout: 30
+      }
+    }
+  ];
+  cfnDistribution.addPropertyOverride('DistributionConfig.Origins', newOrigins);
+
+  // Add cache behavior for ALB
+  const newCacheBehaviors = [
+    {
+      PathPattern: '/stream*',
+      TargetOriginId: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
+      ViewerProtocolPolicy: 'https-only',
+      AllowedMethods: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'POST', 'PATCH', 'DELETE'],
+      CachedMethods: ['GET', 'HEAD', 'OPTIONS'],
+      ForwardedValues: {
+        QueryString: true,
+        Cookies: { Forward: 'all' },
+        Headers: [
+          'Host',
+          'Origin',
+          'Authorization',
+          'Oidc-Info',
+          'Content-Type',
+          'Accept',
+          'Accept-Encoding',
+          'Accept-Language',
+          'Referer',
+          'User-Agent',
+          'X-Forwarded-For',
+          'X-Forwarded-Proto',
+          'X-Requested-With',
+          'Cache-Control'
+        ]
+      },
+      MinTTL: 0,
+      DefaultTTL: 0,
+      MaxTTL: 0
+    }
+  ];
+  cfnDistribution.addPropertyOverride('DistributionConfig.CacheBehaviors', newCacheBehaviors);
+
+  // Update default cache behavior to specify headers explicitly
+  const defaultCacheBehavior = {
+    TargetOriginId: existingOrigins[0]?.id,
+    ViewerProtocolPolicy: 'redirect-to-https',
+    AllowedMethods: ['GET', 'HEAD'],
+    CachedMethods: ['GET', 'HEAD'],
+    ForwardedValues: {
+      QueryString: true,
+      Cookies: { Forward: 'none' },
+      Headers: [] 
+    },
+    TrustedSigners: [],
+    SmoothStreaming: false
+  };
+  cfnDistribution.addPropertyOverride('DistributionConfig.DefaultCacheBehavior', defaultCacheBehavior);
+}
+
 const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
   env: devEnv,
   config: config,
@@ -179,9 +275,11 @@ const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
     oidcRegion: Fn.importValue(`${stackName}-frontend-oidc-region`),
     oidcDomain: Fn.importValue(`${stackName}-frontend-oidc-domain`)
   }),
+  ...(config.chat.enabled && {
+     albUrl: rootStack.chatStack?.albDomainEndpoint,
+  })
 });
-// Add dependencies
-rootStack.addDependency(uiStack);
+
 workspaceStack.addDependency(rootStack);
 workspaceStack.addDependency(uiStack);
 

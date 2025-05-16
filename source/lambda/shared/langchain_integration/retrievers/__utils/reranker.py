@@ -77,7 +77,7 @@ class BGEM3Reranker(BaseDocumentCompressor):
         score_list = []
         logger.info(
             f'rerank pair num {len(query_colbert_list)}, m3 method: colbert score')
-        score_list = asyncio.run(self.__spawn_task(
+        score_list = asyncio.get_event_loop().run_until_complete(self.__spawn_task(
             query_colbert_list, doc_colbert_list))
         final_results = []
         debug_info = query["debug_info"]
@@ -170,7 +170,7 @@ class BGEReranker(BaseDocumentCompressor):
         score_list = []
         logger.info(
             f'rerank pair num {len(rerank_pair)}, endpoint_name: {self.rerank_model_endpoint}')
-        response_list = asyncio.run(self.__spawn_task(rerank_pair))
+        response_list = asyncio.get_event_loop().run_until_complete(self.__spawn_task(rerank_pair))
         for response in response_list:
             score_list.extend(json.loads(response))
         final_results = []

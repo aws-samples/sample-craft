@@ -31,6 +31,7 @@ export class VpcConstruct extends Construct {
   constructor(scope: Construct, id: string, props: VpcConstructProps) {
     super(scope, id);
 
+
     // Check if we should create a new VPC or use an existing one
     if (props.config.vpc.createNewVpc) {
       // Create a new VPC
