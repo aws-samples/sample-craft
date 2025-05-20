@@ -16,3 +16,4 @@ nest-asyncio==1.6.0
 click==8.1.8
 fastapi-mcp==0.3.3
 PyJWT==2.8.0
+langchain-deepseek==0.1.2
