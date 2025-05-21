@@ -13,8 +13,6 @@
 
 import { Aws, StackProps, Stack, CfnOutput, Duration } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import * as cr from "aws-cdk-lib/custom-resources";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
@@ -36,7 +34,7 @@ export class UIStack extends Stack implements UIStackOutputs {
   public mainPortalConstruct: PortalConstruct;
   public clientPortalConstruct: PortalConstruct;
   public userConstruct?: UserConstruct;
-
+  public updateCloudFrontFunction: lambda.Function;
   constructor(scope: Construct, id: string, props: UIStackProps) {
     super(scope, id, props);
 
@@ -49,7 +47,7 @@ export class UIStack extends Stack implements UIStackOutputs {
     });
 
     // Create Lambda function to update CloudFront
-    const updateCloudFrontFunction = new lambda.Function(this, 'UpdateCloudFrontFunction', {
+    this.updateCloudFrontFunction = new lambda.Function(this, 'UpdateCloudFrontFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
@@ -75,8 +73,11 @@ export class UIStack extends Stack implements UIStackOutputs {
             });
 
             const stackRes = await cloudformation.send(new DescribeStacksCommand({ StackName: rootStackName }));
+
+            console.log('rootStackName details:', stackRes.Stacks[0]);
             const outputs = stackRes.Stacks[0].Outputs;
-            const albEndpoint = outputs.find(o => o.OutputKey === 'ALBEndpointAddress')?.OutputValue;
+            console.log('rootStackName outputs:', stackRes.outputs);
+            const albEndpoint = outputs?.find(o => o.OutputKey === 'ALBEndpointAddress')?.OutputValue;
 
             if (!albEndpoint) {
               throw new Error('ALB endpoint not found in stack outputs');
@@ -89,11 +90,9 @@ export class UIStack extends Stack implements UIStackOutputs {
             console.log('Original configuration:', JSON.stringify(config, null, 2));
 
             const updatedOrigins = config.Origins.Items.map(origin => {
-              // 如果是我们要替换的 Origin，跳过
               if (origin.Id === 'OriginForALB') {
                 return null;
               }
-              // 确保所有必需的字段都存在
               return {
                 ...origin,
                 CustomHeaders: {
@@ -104,9 +103,8 @@ export class UIStack extends Stack implements UIStackOutputs {
                   Items: []
                 }
               };
-            }).filter(Boolean); // 移除 null 值
+            }).filter(Boolean);
 
-            // 添加新的 ALB Origin
             updatedOrigins.push({
               Id: 'OriginForALB',
               DomainName: albEndpoint,
@@ -137,7 +135,6 @@ export class UIStack extends Stack implements UIStackOutputs {
               }
             });
 
-            // 4. 构造新的 CacheBehavior（针对 /stream*）
             const updatedCacheBehaviors = (config.CacheBehaviors?.Items || [])
               .filter(b => b.PathPattern !== '/stream*')
               .map(behavior => ({
@@ -254,7 +251,6 @@ export class UIStack extends Stack implements UIStackOutputs {
               }
             });
 
-            // 5. 提交更新
             const finalConfig = {
               ...config,
               Origins: {
@@ -317,7 +313,6 @@ export class UIStack extends Stack implements UIStackOutputs {
               }
             };
 
-            // 打印最终配置以便调试
             console.log('Final configuration:', JSON.stringify(finalConfig, null, 2));
             console.log('DefaultCacheBehavior:', JSON.stringify(finalConfig.DefaultCacheBehavior, null, 2));
             console.log('Origins:', JSON.stringify(finalConfig.Origins, null, 2));
@@ -345,7 +340,7 @@ export class UIStack extends Stack implements UIStackOutputs {
       }
     });
 
-    updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
+    this.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
         'cloudfront:GetDistribution',
@@ -359,33 +354,7 @@ export class UIStack extends Stack implements UIStackOutputs {
       resources: ['*']
     }));
 
-    new cr.AwsCustomResource(this, 'WatchALBEndpoint', {
-      onCreate: {
-        service: 'Lambda',
-        action: 'invoke',
-        parameters: {
-          FunctionName: updateCloudFrontFunction.functionName,
-          InvocationType: 'RequestResponse'
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
-      },
-      onUpdate: {
-        service: 'Lambda',
-        action: 'invoke',
-        parameters: {
-          FunctionName: updateCloudFrontFunction.functionName,
-          InvocationType: 'RequestResponse'
-        },
-        physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
-      },
-      installLatestAwsSdk: false,
-      policy: cr.AwsCustomResourcePolicy.fromStatements([
-        new iam.PolicyStatement({
-          actions: ['lambda:InvokeFunction'],
-          resources: [updateCloudFrontFunction.functionArn]
-        })
-      ])
-    });
+    
 
     if (!props.config.deployRegion.startsWith("cn-")) {
       const userConstruct = new UserConstruct(this, "User", {

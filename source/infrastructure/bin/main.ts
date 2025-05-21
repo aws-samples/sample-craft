@@ -24,8 +24,8 @@ import { ChatStack, ChatStackOutputs } from "../lib/chat/chat-stack";
 import { WorkspaceStack } from "../lib/workspace/workspace-stack";
 import { UIStack } from "../lib/ui/ui-stack";
 import { Fn } from "aws-cdk-lib";
-import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
-import { Aws } from "aws-cdk-lib";
+import * as cr from "aws-cdk-lib/custom-resources";
+import * as iam from "aws-cdk-lib/aws-iam";
 
 dotenv.config();
 
@@ -168,6 +168,339 @@ const rootStack = new RootStack(app, stackName, {
 });
 
 rootStack.node.addDependency(uiStack);
+
+// Create Lambda function to update CloudFront
+// const updateCloudFrontFunction = new lambda.Function(app, 'UpdateCloudFrontFunction', {
+//   runtime: lambda.Runtime.NODEJS_18_X,
+//   handler: 'index.handler',
+//   code: lambda.Code.fromInline(`
+//     const { CloudFrontClient, GetDistributionConfigCommand, UpdateDistributionCommand } = require('@aws-sdk/client-cloudfront');
+//     const { CloudFormationClient, DescribeStacksCommand } = require('@aws-sdk/client-cloudformation');
+
+//     exports.handler = async (event) => {
+//       try {
+
+//         const cloudfront = new CloudFrontClient({});
+//         const cloudformation = new CloudFormationClient({});
+
+//         const rootStackName = process.env.ROOT_STACK_NAME;
+//         const distributionId = process.env.DISTRIBUTION_ID;
+
+//         if (!rootStackName || !distributionId) {
+//           throw new Error('Missing environment variables ROOT_STACK_NAME or DISTRIBUTION_ID');
+//         }
+
+//         console.log('Environment variables:', {
+//           ROOT_STACK_NAME: rootStackName,
+//           DISTRIBUTION_ID: distributionId
+//         });
+
+//         const stackRes = await cloudformation.send(new DescribeStacksCommand({ StackName: rootStackName }));
+//         const outputs = stackRes.Stacks[0].Outputs;
+//         const albEndpoint = outputs.find(o => o.OutputKey === 'ALBEndpointAddress')?.OutputValue;
+
+//         if (!albEndpoint) {
+//           throw new Error('ALB endpoint not found in stack outputs');
+//         }
+
+//         const distributionRes = await cloudfront.send(new GetDistributionConfigCommand({ Id: distributionId }));
+//         const config = distributionRes.DistributionConfig;
+//         const etag = distributionRes.ETag;
+
+//         console.log('Original configuration:', JSON.stringify(config, null, 2));
+
+//         const updatedOrigins = config.Origins.Items.map(origin => {
+//           if (origin.Id === 'OriginForALB') {
+//             return null;
+//           }
+//           return {
+//             ...origin,
+//             CustomHeaders: {
+//               Quantity: 0
+//             },
+//             OriginCustomHeaders: {
+//               Quantity: 0,
+//               Items: []
+//             }
+//           };
+//         }).filter(Boolean);
+
+//         updatedOrigins.push({
+//           Id: 'OriginForALB',
+//           DomainName: albEndpoint,
+//           OriginPath: '',
+//           CustomHeaders: {
+//             Quantity: 0
+//           },
+//           CustomOriginConfig: {
+//             HTTPPort: 80,
+//             HTTPSPort: 443,
+//             OriginProtocolPolicy: 'http-only',
+//             OriginSslProtocols: {
+//               Quantity: 1,
+//               Items: ['TLSv1.2']
+//             },
+//             OriginReadTimeout: 30,
+//             OriginKeepaliveTimeout: 60
+//           },
+//           ConnectionAttempts: 3,
+//           ConnectionTimeout: 10,
+//           OriginShield: {
+//             Enabled: false
+//           },
+//           OriginAccessControlId: '',
+//           OriginCustomHeaders: {
+//             Quantity: 0,
+//             Items: []
+//           }
+//         });
+
+//         const updatedCacheBehaviors = (config.CacheBehaviors?.Items || [])
+//           .filter(b => b.PathPattern !== '/stream*')
+//           .map(behavior => ({
+//             ...behavior,
+//             CustomHeaders: {
+//               Quantity: 0
+//             },
+//             OriginCustomHeaders: {
+//               Quantity: 0,
+//               Items: []
+//             },
+//             SmoothStreaming: false,
+//             Compress: true,
+//             FieldLevelEncryptionId: '',
+//             TrustedSigners: {
+//               Enabled: false,
+//               Quantity: 0
+//             },
+//             TrustedKeyGroups: {
+//               Enabled: false,
+//               Quantity: 0
+//             },
+//             LambdaFunctionAssociations: {
+//               Quantity: 0
+//             },
+//             FunctionAssociations: {
+//               Quantity: 0
+//             },
+//             ForwardedValues: {
+//               ...behavior.ForwardedValues,
+//               QueryStringCacheKeys: {
+//                 Quantity: 0,
+//                 Items: []
+//               },
+//               QueryString: true,
+//               Headers: {
+//                 Quantity: 13,
+//                 Items: [
+//                   'Host', 'Origin', 'Authorization', 'Oidc-Info', 'Content-Type', 'Accept',
+//                   'Accept-Encoding', 'Accept-Language', 'Referer', 'User-Agent',
+//                   'X-Forwarded-For', 'X-Forwarded-Proto', 'X-Requested-With'
+//                 ]
+//               },
+//               Cookies: {
+//                 Forward: 'all',
+//                 WhitelistedNames: {
+//                   Quantity: 0,
+//                   Items: []
+//                 }
+//               }
+//             }
+//           }));
+
+//         updatedCacheBehaviors.push({
+//           PathPattern: '/stream*',
+//           TargetOriginId: 'OriginForALB',
+//           ViewerProtocolPolicy: 'https-only',
+//           CustomHeaders: {
+//             Quantity: 0
+//           },
+//           AllowedMethods: {
+//             Quantity: 7,
+//             Items: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'POST', 'PATCH', 'DELETE'],
+//             CachedMethods: {
+//               Quantity: 3,
+//               Items: ['GET', 'HEAD', 'OPTIONS']
+//             }
+//           },
+//           ForwardedValues: {
+//             QueryString: true,
+//             Cookies: {
+//               Forward: 'all',
+//               WhitelistedNames: {
+//                 Quantity: 0,
+//                 Items: []
+//               }
+//             },
+//             Headers: {
+//               Quantity: 13,
+//               Items: [
+//                 'Host', 'Origin', 'Authorization', 'Oidc-Info', 'Content-Type', 'Accept',
+//                 'Accept-Encoding', 'Accept-Language', 'Referer', 'User-Agent',
+//                 'X-Forwarded-For', 'X-Forwarded-Proto', 'X-Requested-With'
+//               ]
+//             },
+//             QueryStringCacheKeys: {
+//               Quantity: 0,
+//               Items: []
+//             }
+//           },
+//           MinTTL: 0,
+//           DefaultTTL: 0,
+//           MaxTTL: 0,
+//           OriginCustomHeaders: {
+//             Quantity: 0,
+//             Items: []
+//           },
+//           SmoothStreaming: false,
+//           Compress: true,
+//           FieldLevelEncryptionId: '',
+//           TrustedSigners: {
+//             Enabled: false,
+//             Quantity: 0
+//           },
+//           TrustedKeyGroups: {
+//             Enabled: false,
+//             Quantity: 0
+//           },
+//           LambdaFunctionAssociations: {
+//             Quantity: 0
+//           },
+//           FunctionAssociations: {
+//             Quantity: 0
+//           }
+//         });
+
+//         const finalConfig = {
+//           ...config,
+//           Origins: {
+//             Quantity: updatedOrigins.length,
+//             Items: updatedOrigins
+//           },
+//           DefaultCacheBehavior: {
+//             ...config.DefaultCacheBehavior,
+//             CustomHeaders: {
+//               Quantity: 0
+//             },
+//             OriginCustomHeaders: {
+//               Quantity: 0,
+//               Items: []
+//             },
+//             SmoothStreaming: false,
+//             Compress: true,
+//             FieldLevelEncryptionId: '',
+//             TrustedSigners: {
+//               Enabled: false,
+//               Quantity: 0
+//             },
+//             TrustedKeyGroups: {
+//               Enabled: false,
+//               Quantity: 0
+//             },
+//             LambdaFunctionAssociations: {
+//               Quantity: 0
+//             },
+//             FunctionAssociations: {
+//               Quantity: 0
+//             },
+//             ForwardedValues: {
+//               ...config.DefaultCacheBehavior.ForwardedValues,
+//               QueryString: true,
+//               Cookies: {
+//                 Forward: 'all',
+//                 WhitelistedNames: {
+//                   Quantity: 0,
+//                   Items: []
+//                 }
+//               },
+//               Headers: {
+//                 Quantity: 13,
+//                 Items: [
+//                   'Host', 'Origin', 'Authorization', 'Oidc-Info', 'Content-Type', 'Accept',
+//                   'Accept-Encoding', 'Accept-Language', 'Referer', 'User-Agent',
+//                   'X-Forwarded-For', 'X-Forwarded-Proto', 'X-Requested-With'
+//                 ]
+//               },
+//               QueryStringCacheKeys: {
+//                 Quantity: 0,
+//                 Items: []
+//               }
+//             }
+//           },
+//           CacheBehaviors: {
+//             Quantity: updatedCacheBehaviors.length,
+//             Items: updatedCacheBehaviors
+//           }
+//         };
+
+//         console.log('Final configuration:', JSON.stringify(finalConfig, null, 2));
+//         console.log('DefaultCacheBehavior:', JSON.stringify(finalConfig.DefaultCacheBehavior, null, 2));
+//         console.log('Origins:', JSON.stringify(finalConfig.Origins, null, 2));
+//         console.log('CacheBehaviors:', JSON.stringify(finalConfig.CacheBehaviors, null, 2));
+
+//         await cloudfront.send(new UpdateDistributionCommand({
+//           Id: distributionId,
+//           IfMatch: etag,
+//           DistributionConfig: finalConfig
+//         }));
+
+//         console.log('CloudFront distribution updated successfully.');
+//         return { PhysicalResourceId: 'UpdateCloudFront' };
+
+//       } catch (err) {
+//         console.error('Update failed:', err);
+//         throw err;
+//       }
+//     }
+//   `),
+//   timeout: Duration.minutes(5),
+//   environment: {
+//     ROOT_STACK_NAME: rootStack.stackName,
+//     DISTRIBUTION_ID: (mainPortalConstruct.node.findChild('Distribution') as cloudfront.CfnDistribution).attrId
+//   }
+// });
+
+uiStack.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
+  effect: iam.Effect.ALLOW,
+  actions: [
+    'cloudfront:GetDistribution',
+    'cloudfront:GetDistributionConfig',
+    'cloudfront:UpdateDistribution',
+    'cloudformation:DescribeStacks',
+    'logs:CreateLogGroup',
+    'logs:CreateLogStream',
+    'logs:PutLogEvents'
+  ],
+  resources: ['*']
+}));
+
+new cr.AwsCustomResource(rootStack, 'WatchALBEndpoint', {
+  onCreate: {
+    service: 'Lambda',
+    action: 'invoke',
+    parameters: {
+      FunctionName: uiStack.updateCloudFrontFunction.functionName,
+      InvocationType: 'RequestResponse'
+    },
+    physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
+  },
+  onUpdate: {
+    service: 'Lambda',
+    action: 'invoke',
+    parameters: {
+      FunctionName: uiStack.updateCloudFrontFunction.functionName,
+      InvocationType: 'RequestResponse'
+    },
+    physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
+  },
+  installLatestAwsSdk: false,
+  policy: cr.AwsCustomResourcePolicy.fromStatements([
+    new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [uiStack.updateCloudFrontFunction.functionArn]
+    })
+  ])
+});
 // if (rootStack.chatStack?.loadBalancer) {
 //   const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
 //   const existingConfig = cfnDistribution.distributionConfig as cloudfront.CfnDistribution.DistributionConfigProperty;
