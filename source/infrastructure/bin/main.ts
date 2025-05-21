@@ -32,8 +32,8 @@ dotenv.config();
 export interface RootStackProps extends StackProps {
   readonly config: SystemConfig;
   readonly oidcLogoutUrl?: string;
-  readonly portalBucketName: string;
-  readonly portalUrl: string;
+  // readonly portalBucketName: string;
+  // readonly portalUrl: string;
   readonly env?: {
     account: string | undefined;
     region: string;
@@ -75,7 +75,7 @@ export class RootStack extends Stack {
         config: props.config,
         sharedConstructOutputs: sharedConstruct,
         modelConstructOutputs: modelConstruct,
-        uiPortalBucketName: props.portalBucketName,
+        uiPortalBucketName: Fn.importValue(`${stackName}-frontend-portal-bucket-name`),
       });
       knowledgeBaseStack.node.addDependency(sharedConstruct);
       knowledgeBaseStack.node.addDependency(modelConstruct);
@@ -115,7 +115,7 @@ export class RootStack extends Stack {
       value: apiConstruct.apiEndpoint,
     });
     new CfnOutput(this, "Web Portal URL", {
-      value: props.portalUrl,
+      value: Fn.importValue(`${stackName}-frontend-portal-url`),
       description: "Web portal url",
     });
     // new CfnOutput(this, "WebSocket Endpoint Address", {
@@ -123,10 +123,10 @@ export class RootStack extends Stack {
     // });
     if (!isChinaRegion) {
       new CfnOutput(this, "OIDC Client ID", {
-        value: props.oidcClientId || '',
+        value: Fn.importValue(`${stackName}-frontend-oidc-client-id`) || '',
       });
       new CfnOutput(this, "User Pool ID", {
-        value: props.userPoolId || '',
+        value: Fn.importValue(`${stackName}-frontend-user-pool-id`) || '',
       });
     }
   }
@@ -156,105 +156,105 @@ const uiStack = new UIStack(app, `${stackName}-frontend`, {
 const rootStack = new RootStack(app, stackName, {
   config,
   env: devEnv, 
-  portalBucketName: Fn.importValue(`${stackName}-frontend-portal-bucket-name`),
-  portalUrl: Fn.importValue(`${stackName}-frontend-portal-url`),
+  // portalBucketName: Fn.importValue(`${stackName}-frontend-portal-bucket-name`),
+  // portalUrl: Fn.importValue(`${stackName}-frontend-portal-url`),
   suppressTemplateIndentation: true,
-  ...(!(devEnv?.region.startsWith('cn-')) && {
-    userPoolId: Fn.importValue(`${stackName}-frontend-user-pool-id`),
-    oidcClientId: Fn.importValue(`${stackName}-frontend-oidc-client-id`),
-    oidcIssuer: Fn.importValue(`${stackName}-frontend-oidc-issuer`),
-    oidcLogoutUrl: Fn.importValue(`${stackName}-frontend-oidc-logout-url`),
-  }),
+  // ...(!(devEnv?.region.startsWith('cn-')) && {
+  //   userPoolId: Fn.importValue(`${stackName}-frontend-user-pool-id`),
+  //   oidcClientId: Fn.importValue(`${stackName}-frontend-oidc-client-id`),
+  //   oidcIssuer: Fn.importValue(`${stackName}-frontend-oidc-issuer`),
+  //   oidcLogoutUrl: Fn.importValue(`${stackName}-frontend-oidc-logout-url`),
+  // }),
 });
 
-
-if (rootStack.chatStack?.loadBalancer) {
-  const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
-  const existingConfig = cfnDistribution.distributionConfig as cloudfront.CfnDistribution.DistributionConfigProperty;
+rootStack.node.addDependency(uiStack);
+// if (rootStack.chatStack?.loadBalancer) {
+//   const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
+//   const existingConfig = cfnDistribution.distributionConfig as cloudfront.CfnDistribution.DistributionConfigProperty;
   
-  // Add ALB origin to existing origins
-  const existingOrigins = Array.isArray(existingConfig.origins) 
-    ? existingConfig.origins as cloudfront.CfnDistribution.OriginProperty[]
-    : [];
+//   // Add ALB origin to existing origins
+//   const existingOrigins = Array.isArray(existingConfig.origins) 
+//     ? existingConfig.origins as cloudfront.CfnDistribution.OriginProperty[]
+//     : [];
   
-  const s3Config = existingOrigins[0]?.s3OriginConfig as cloudfront.CfnDistribution.S3OriginConfigProperty;
+//   const s3Config = existingOrigins[0]?.s3OriginConfig as cloudfront.CfnDistribution.S3OriginConfigProperty;
   
-  const newOrigins = [
-    // Convert existing S3 origin to use PascalCase properties
-    {
-      Id: existingOrigins[0]?.id,
-      DomainName: existingOrigins[0]?.domainName,
-      S3OriginConfig: {
-        OriginAccessIdentity: s3Config?.originAccessIdentity
-      }
-    },
-    // Add ALB origin
-    {
-      Id: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
-      DomainName: rootStack.chatStack.loadBalancer.loadBalancerDnsName,
-      CustomOriginConfig: {
-        HTTPPort: 80,
-        HTTPSPort: 443,
-        OriginProtocolPolicy: 'http-only',
-        OriginSSLProtocols: ['TLSv1.2'],
-        OriginKeepaliveTimeout: 60,
-        OriginReadTimeout: 30
-      }
-    }
-  ];
-  cfnDistribution.addPropertyOverride('DistributionConfig.Origins', newOrigins);
+//   const newOrigins = [
+//     // Convert existing S3 origin to use PascalCase properties
+//     {
+//       Id: existingOrigins[0]?.id,
+//       DomainName: existingOrigins[0]?.domainName,
+//       S3OriginConfig: {
+//         OriginAccessIdentity: s3Config?.originAccessIdentity
+//       }
+//     },
+//     // Add ALB origin
+//     {
+//       Id: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
+//       DomainName: rootStack.chatStack.loadBalancer.loadBalancerDnsName,
+//       CustomOriginConfig: {
+//         HTTPPort: 80,
+//         HTTPSPort: 443,
+//         OriginProtocolPolicy: 'http-only',
+//         OriginSSLProtocols: ['TLSv1.2'],
+//         OriginKeepaliveTimeout: 60,
+//         OriginReadTimeout: 30
+//       }
+//     }
+//   ];
+//   cfnDistribution.addPropertyOverride('DistributionConfig.Origins', newOrigins);
 
-  // Add cache behavior for ALB
-  const newCacheBehaviors = [
-    {
-      PathPattern: '/stream*',
-      TargetOriginId: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
-      ViewerProtocolPolicy: 'https-only',
-      AllowedMethods: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'POST', 'PATCH', 'DELETE'],
-      CachedMethods: ['GET', 'HEAD', 'OPTIONS'],
-      ForwardedValues: {
-        QueryString: true,
-        Cookies: { Forward: 'all' },
-        Headers: [
-          'Host',
-          'Origin',
-          'Authorization',
-          'Oidc-Info',
-          'Content-Type',
-          'Accept',
-          'Accept-Encoding',
-          'Accept-Language',
-          'Referer',
-          'User-Agent',
-          'X-Forwarded-For',
-          'X-Forwarded-Proto',
-          'X-Requested-With',
-          'Cache-Control'
-        ]
-      },
-      MinTTL: 0,
-      DefaultTTL: 0,
-      MaxTTL: 0
-    }
-  ];
-  cfnDistribution.addPropertyOverride('DistributionConfig.CacheBehaviors', newCacheBehaviors);
+//   // Add cache behavior for ALB
+//   const newCacheBehaviors = [
+//     {
+//       PathPattern: '/stream*',
+//       TargetOriginId: `OriginFor${rootStack.chatStack.loadBalancer.loadBalancerName}`,
+//       ViewerProtocolPolicy: 'https-only',
+//       AllowedMethods: ['GET', 'HEAD', 'OPTIONS', 'PUT', 'POST', 'PATCH', 'DELETE'],
+//       CachedMethods: ['GET', 'HEAD', 'OPTIONS'],
+//       ForwardedValues: {
+//         QueryString: true,
+//         Cookies: { Forward: 'all' },
+//         Headers: [
+//           'Host',
+//           'Origin',
+//           'Authorization',
+//           'Oidc-Info',
+//           'Content-Type',
+//           'Accept',
+//           'Accept-Encoding',
+//           'Accept-Language',
+//           'Referer',
+//           'User-Agent',
+//           'X-Forwarded-For',
+//           'X-Forwarded-Proto',
+//           'X-Requested-With',
+//           'Cache-Control'
+//         ]
+//       },
+//       MinTTL: 0,
+//       DefaultTTL: 0,
+//       MaxTTL: 0
+//     }
+//   ];
+//   cfnDistribution.addPropertyOverride('DistributionConfig.CacheBehaviors', newCacheBehaviors);
 
-  // Update default cache behavior to specify headers explicitly
-  const defaultCacheBehavior = {
-    TargetOriginId: existingOrigins[0]?.id,
-    ViewerProtocolPolicy: 'redirect-to-https',
-    AllowedMethods: ['GET', 'HEAD'],
-    CachedMethods: ['GET', 'HEAD'],
-    ForwardedValues: {
-      QueryString: true,
-      Cookies: { Forward: 'none' },
-      Headers: [] 
-    },
-    TrustedSigners: [],
-    SmoothStreaming: false
-  };
-  cfnDistribution.addPropertyOverride('DistributionConfig.DefaultCacheBehavior', defaultCacheBehavior);
-}
+//   // Update default cache behavior to specify headers explicitly
+//   const defaultCacheBehavior = {
+//     TargetOriginId: existingOrigins[0]?.id,
+//     ViewerProtocolPolicy: 'redirect-to-https',
+//     AllowedMethods: ['GET', 'HEAD'],
+//     CachedMethods: ['GET', 'HEAD'],
+//     ForwardedValues: {
+//       QueryString: true,
+//       Cookies: { Forward: 'none' },
+//       Headers: [] 
+//     },
+//     TrustedSigners: [],
+//     SmoothStreaming: false
+//   };
+//   cfnDistribution.addPropertyOverride('DistributionConfig.DefaultCacheBehavior', defaultCacheBehavior);
+// }
 
 const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
   env: devEnv,

@@ -35,7 +35,7 @@ export interface SharedConstructOutputs {
   modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
 
-  vpc?: IVpc;
+  vpc: IVpc;
   privateSubnets?: ISubnet[];
   securityGroups?: SecurityGroup[];
   useOpensearchInVpc: boolean;
@@ -49,7 +49,7 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
   public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
 
-  public vpc?: IVpc;
+  public vpc: IVpc;
   public privateSubnets?: ISubnet[];
   public securityGroups?: SecurityGroup[];
   public useOpensearchInVpc: boolean;
