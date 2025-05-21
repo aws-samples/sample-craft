@@ -26,6 +26,7 @@ import { UIStack } from "../lib/ui/ui-stack";
 import { Fn } from "aws-cdk-lib";
 import * as cr from "aws-cdk-lib/custom-resources";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as cdk from "aws-cdk-lib";
 
 dotenv.config();
 
@@ -474,32 +475,12 @@ uiStack.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
   resources: ['*']
 }));
 
-new cr.AwsCustomResource(rootStack, 'WatchALBEndpoint', {
-  onCreate: {
-    service: 'Lambda',
-    action: 'invoke',
-    parameters: {
-      FunctionName: uiStack.updateCloudFrontFunction.functionName,
-      InvocationType: 'RequestResponse'
-    },
-    physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
-  },
-  onUpdate: {
-    service: 'Lambda',
-    action: 'invoke',
-    parameters: {
-      FunctionName: uiStack.updateCloudFrontFunction.functionName,
-      InvocationType: 'RequestResponse'
-    },
-    physicalResourceId: cr.PhysicalResourceId.of('WatchALBEndpoint')
-  },
-  installLatestAwsSdk: false,
-  policy: cr.AwsCustomResourcePolicy.fromStatements([
-    new iam.PolicyStatement({
-      actions: ['lambda:InvokeFunction'],
-      resources: [uiStack.updateCloudFrontFunction.functionArn]
-    })
-  ])
+new cdk.CustomResource(app, 'WatchALBEndpoint', {
+  serviceToken: uiStack.updateCloudFrontFunction.functionArn,
+  properties: {
+    ServiceToken: uiStack.updateCloudFrontFunction.functionArn,
+    StackName: rootStack.stackName
+  }
 });
 // if (rootStack.chatStack?.loadBalancer) {
 //   const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
