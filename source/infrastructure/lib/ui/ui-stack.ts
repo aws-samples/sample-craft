@@ -51,12 +51,15 @@ export class UIStack extends Stack implements UIStackOutputs {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
+        const https = require('https');
+        const url = require('url');
         const { CloudFrontClient, GetDistributionConfigCommand, UpdateDistributionCommand } = require('@aws-sdk/client-cloudfront');
         const { CloudFormationClient, DescribeStacksCommand } = require('@aws-sdk/client-cloudformation');
 
-        exports.handler = async (event) => {
+        exports.handler = async (event, context) => {
+          let responseStatus = 'SUCCESS';
+          let responseData = {};
           try {
-
             const cloudfront = new CloudFrontClient({});
             const cloudformation = new CloudFormationClient({});
 
@@ -73,10 +76,11 @@ export class UIStack extends Stack implements UIStackOutputs {
             });
 
             const stackRes = await cloudformation.send(new DescribeStacksCommand({ StackName: rootStackName }));
-
             console.log('rootStackName details:', stackRes.Stacks[0]);
+            
             const outputs = stackRes.Stacks[0].Outputs;
-            console.log('rootStackName outputs:', stackRes.outputs);
+            console.log('rootStackName outputs:', outputs);
+            
             const albEndpoint = outputs?.find(o => o.OutputKey === 'ALBEndpointAddress')?.OutputValue;
 
             if (!albEndpoint) {
@@ -209,7 +213,7 @@ export class UIStack extends Stack implements UIStackOutputs {
                   Forward: 'all',
                   WhitelistedNames: {
                     Quantity: 0,
-                    Items: []
+                    Items: [] 
                   }
                 },
                 Headers: {
@@ -325,13 +329,58 @@ export class UIStack extends Stack implements UIStackOutputs {
             }));
 
             console.log('CloudFront distribution updated successfully.');
-            return { PhysicalResourceId: 'UpdateCloudFront' };
-
+            responseStatus = 'SUCCESS';
+            responseData = {
+              Message: 'CloudFront distribution updated successfully'
+            };
           } catch (err) {
             console.error('Update failed:', err);
-            throw err;
+            responseStatus = 'FAILED';
+            responseData = {
+              Error: err.message
+            };
           }
+          await sendCloudFormationResponse(event, context, responseStatus, responseData, 'UpdateCloudFront');
         }
+        async function sendCloudFormationResponse(event, context, responseStatus, responseData, physicalResourceId) {
+  const responseBody = JSON.stringify({
+    Status: responseStatus,
+    Reason: responseStatus === 'FAILED' ? responseData.Error || 'Error' : 'See CloudWatch Log Stream: ' + context.logStreamName,
+    PhysicalResourceId: physicalResourceId || context.logStreamName,
+    StackId: event.StackId,
+    RequestId: event.RequestId,
+    LogicalResourceId: event.LogicalResourceId,
+    NoEcho: false,
+    Data: responseData
+  });
+
+  console.log('Sending response to CloudFormation:', responseBody);
+
+  const parsedUrl = url.parse(event.ResponseURL);
+  const options = {
+    hostname: parsedUrl.hostname,
+    port: 443,
+    path: parsedUrl.path,
+    method: 'PUT',
+    headers: {
+      'Content-Type': '',
+      'Content-Length': Buffer.byteLength(responseBody)
+    }
+  };
+
+  await new Promise((resolve, reject) => {
+    const request = https.request(options, (response) => {
+      resolve();
+    });
+
+    request.on('error', (error) => {
+      reject(error);
+    });
+
+    request.write(responseBody);
+    request.end();
+  });
+}
       `),
       timeout: Duration.minutes(5),
       environment: {
@@ -353,6 +402,8 @@ export class UIStack extends Stack implements UIStackOutputs {
       ],
       resources: ['*']
     }));
+
+    
 
     
 

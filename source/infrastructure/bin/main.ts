@@ -475,13 +475,13 @@ uiStack.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
   resources: ['*']
 }));
 
-new cdk.CustomResource(app, 'WatchALBEndpoint', {
-  serviceToken: uiStack.updateCloudFrontFunction.functionArn,
-  properties: {
-    ServiceToken: uiStack.updateCloudFrontFunction.functionArn,
-    StackName: rootStack.stackName
-  }
-});
+// new cdk.CustomResource(app, 'WatchALBEndpoint', {
+//   serviceToken: uiStack.updateCloudFrontFunction.functionArn,
+//   properties: {
+//     ServiceToken: uiStack.updateCloudFrontFunction.functionArn,
+//     StackName: rootStack.stackName
+//   }
+// });
 // if (rootStack.chatStack?.loadBalancer) {
 //   const cfnDistribution = uiStack.node.findChild('MainUI').node.findChild('Distribution') as cloudfront.CfnDistribution;
 //   const existingConfig = cfnDistribution.distributionConfig as cloudfront.CfnDistribution.DistributionConfigProperty;
@@ -592,6 +592,14 @@ const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
   ...(config.chat.enabled && {
      albUrl: rootStack.chatStack?.albDomainEndpoint,
   })
+});
+
+new cdk.CustomResource(workspaceStack, 'WatchALBEndpoint', {
+  serviceToken: uiStack.updateCloudFrontFunction.functionArn,
+  properties: {
+    ServiceToken: uiStack.updateCloudFrontFunction.functionArn,
+    StackName: rootStack.stackName
+  }
 });
 
 workspaceStack.addDependency(rootStack);
