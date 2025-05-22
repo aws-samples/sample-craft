@@ -11,19 +11,18 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Aws, StackProps, Stack, CfnOutput } from "aws-cdk-lib";
+import { Aws, StackProps, Stack, CfnOutput, Duration } from "aws-cdk-lib";
 import { Construct } from "constructs";
-import { join } from "path";
-
-import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
-
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as iam from "aws-cdk-lib/aws-iam";
 import { SystemConfig } from "../shared/types";
 import { PortalConstruct } from "../ui/ui-portal";
 import { UserConstruct } from "../user/user-construct";
+import * as path from "path";
 
 interface UIStackProps extends StackProps {
   readonly config: SystemConfig;
-  readonly alb?: elbv2.ApplicationLoadBalancer;
 }
 
 export interface UIStackOutputs {
@@ -33,23 +32,47 @@ export interface UIStackOutputs {
 }
 
 export class UIStack extends Stack implements UIStackOutputs {
-
   public mainPortalConstruct: PortalConstruct;
   public clientPortalConstruct: PortalConstruct;
   public userConstruct?: UserConstruct;
-
+  public updateCloudFrontFunction: lambda.Function;
   constructor(scope: Construct, id: string, props: UIStackProps) {
     super(scope, id, props);
 
     const mainPortalConstruct = new PortalConstruct(this, "MainUI", {
       responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-main`,
-      alb: props.alb
     });
     const clientPortalConstruct = new PortalConstruct(this, "ClientUI", {
-      uiSourcePath: join(__dirname, "../../../cs-portal/dist"),
+      uiSourcePath: "../cs-portal/dist",
       responseHeadersPolicyName: `SecHdr${Aws.REGION}${Aws.STACK_NAME}-client`,
-      alb: props.alb
     });
+
+    // Create Lambda function to update CloudFront
+    this.updateCloudFrontFunction = new lambda.Function(this, 'UpdateCloudFrontFunction', {
+      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda')),
+      handler: 'customer-resource-lambda.handler',
+      runtime: lambda.Runtime.NODEJS_18_X,
+      timeout: Duration.minutes(5),
+      environment: {
+        ROOT_STACK_NAME: id.replace('-frontend', ''),
+        DISTRIBUTION_ID: (mainPortalConstruct.node.findChild('Distribution') as cloudfront.CfnDistribution).attrId
+      }
+    });
+
+    this.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'cloudfront:GetDistribution',
+        'cloudfront:GetDistributionConfig',
+        'cloudfront:UpdateDistribution',
+        'cloudformation:DescribeStacks',
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents'
+      ],
+      resources: ['*']
+    }));
+
     if (!props.config.deployRegion.startsWith("cn-")) {
       const userConstruct = new UserConstruct(this, "User", {
         deployRegion: props.config.deployRegion,
@@ -62,8 +85,6 @@ export class UIStack extends Stack implements UIStackOutputs {
           `https://${clientPortalConstruct.portalUrl}`,
           `https://${mainPortalConstruct.portalUrl}`
         ],
-      // userPoolName: `${Constants.SOLUTION_NAME}-workspace_UserPool`,
-      // domainPrefix: `${Constants.SOLUTION_NAME.toLowerCase()}-workspace-${Aws.ACCOUNT_ID}`,
       });
       this.userConstruct = userConstruct;
       // Add CfnOutputs to export values
@@ -87,7 +108,7 @@ export class UIStack extends Stack implements UIStackOutputs {
         exportName: `${id}-oidc-logout-url`
       });
       new CfnOutput(this, 'OidcRegion', {
-        value: userConstruct.oidcRegion ,
+        value: userConstruct.oidcRegion,
         exportName: `${id}-oidc-region`
       });
       new CfnOutput(this, 'OidcDomain', {

@@ -34,7 +34,7 @@ export interface PortalConstructProps {
    */
   uiSourcePath?: string;
   responseHeadersPolicyName: string;
-  alb?: elbv2.ApplicationLoadBalancer ;
+  // alb?: elbv2.ApplicationLoadBalancer ;
 }
 
 /**
@@ -83,18 +83,6 @@ export class PortalConstruct extends Construct implements PortalConstructOutputs
               originAccessIdentity: oaiId,
             },
           },
-          ...(props.alb ? [{
-            id: `OriginFor${props.alb.loadBalancerName}`,
-            domainName: props.alb.loadBalancerDnsName,
-            customOriginConfig: {
-              httpPort: 80,
-              httpsPort: 443,
-              originProtocolPolicy: 'http-only',
-              originSslProtocols: ['TLSv1.2'],
-              originKeepaliveTimeout: 60,
-              originReadTimeout: 30
-            }
-          }] : [])
         ],
         defaultCacheBehavior: {
           targetOriginId: this.portalBucket.bucketName,
