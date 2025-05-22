@@ -49,7 +49,7 @@ export class UIStack extends Stack implements UIStackOutputs {
 
     // Create Lambda function to update CloudFront
     this.updateCloudFrontFunction = new lambda.Function(this, 'UpdateCloudFrontFunction', {
-      code: lambda.Code.fromAsset(path.join(__dirname, 'lambda')),
+      code: lambda.Code.fromAsset(__dirname),
       handler: 'customer-resource-lambda.handler',
       runtime: lambda.Runtime.NODEJS_18_X,
       timeout: Duration.minutes(5),
