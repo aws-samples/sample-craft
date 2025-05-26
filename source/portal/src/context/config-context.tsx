@@ -2,7 +2,7 @@ import React from 'react';
 export interface Config {
   websocket: string;
   apiUrl: string;
-  albUrl: string;
+  // albUrl: string;
   docsS3Bucket: string;
   workspaceId: string;
   oidcProvider: string;

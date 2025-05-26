@@ -53,7 +53,6 @@ const useAxiosSSERequest = ({
 
       // const url = `http://${config?.albUrl}${path}?${params}&Authorization=${authToken}&Oidc-Info=${oidcInfo}`;
       const url = `${config?.oidcRedirectUrl.replace('/signin', '')}${path}?${params}`;
-      // const es = new EventSource(url);
       const es = new EventSourcePolyfill(url,{
         headers: {
           'Authorization': authToken,

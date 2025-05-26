@@ -193,25 +193,9 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
       new lambdaEventSources.SqsEventSource(chatQueueConstruct.messageQueue, { batchSize: 1 }),
     );
 
-    // const webSocketApi = new WSWebSocketConstruct(this, "WSWebSocketApi", {
-    //   dispatcherLambda: wsDispatcher.function,
-    //   sendMessageLambda: wsQueryHandler,
-    //   sendResponseLambda: wsQueryHandler,
-    //   customAuthorizerLambda: customAuthorizerLambda.function,
-    //   iamHelper: this.iamHelper,
-    //   sessionTableName: customerSessionsTable.tableName,
-    //   messageTableName: customerMessagesTable.tableName,
-    //   sessionIndex: "byTimestamp",
-    //   messageIndex: "bySessionId",
-    // });
-    // let wsStage = webSocketApi.websocketApiStage
-    // this.wsEndpoint = `${wsStage.api.apiEndpoint}/${wsStage.stageName}/`;
-
     const uiExports = new UiExportsConstruct(this, "MainUIExportAsset", {
       portalBucketName: props.portalBucketName,
       uiProps: {
-        // websocket: props.apiConstructOutputs.wsEndpoint,
-        // workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,
         oidcIssuer: props.oidcIssuer,
@@ -223,8 +207,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         embeddingEndpoint: embeddingEndpoint,
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
-        oidcRegion: props.oidcRegion,
-        albUrl: props.albUrl
+        oidcRegion: props.oidcRegion
       },
     });
 
@@ -234,7 +217,6 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
     const clientUiExports = new UiExportsConstruct(this, "ClientUIExportAsset", {
       portalBucketName: props.clientPortalBucketName,
       uiProps: {
-        // workspaceWebsocket: this.wsEndpoint,
         apiUrl: props.apiConstructOutputs.api.url,
         workspaceApiUrl: workspaceApi.url,
         oidcIssuer: props.oidcIssuer,
@@ -246,8 +228,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
         embeddingEndpoint: embeddingEndpoint,
         oidcDomain: props.oidcDomain,
         oidcPoolId: props.userPoolId,
-        oidcRegion: props.oidcRegion,
-        albUrl: props.albUrl
+        oidcRegion: props.oidcRegion
       },
     });
 

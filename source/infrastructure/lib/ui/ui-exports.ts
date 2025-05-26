@@ -20,8 +20,6 @@ import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 
 export interface UIProps extends StackProps {
-  readonly websocket?: string;
-  // readonly workspaceWebsocket: string;
   readonly apiUrl: string;
   readonly workspaceApiUrl: string;
   readonly oidcIssuer?: string;
@@ -34,8 +32,6 @@ export interface UIProps extends StackProps {
   readonly kbEnabled: string;
   readonly kbType: string;
   readonly embeddingEndpoint: string;
-  readonly albUrl?: string;
-  // readonly apiKey?: string;
 }
 
 export interface UiExportsProps extends StackProps {

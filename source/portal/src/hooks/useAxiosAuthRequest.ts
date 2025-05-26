@@ -4,8 +4,6 @@ import ConfigContext from 'src/context/config-context';
 
 const useAxiosAuthRequest = () => {
   const config = useContext(ConfigContext);
-  // const user = getUser(config?.oidcIssuer, config?.oidcClientId);
-  // const token = user?.id_token;
   const sendRequest = async ({
     url = '',
     method = 'get',
@@ -27,15 +25,10 @@ const useAxiosAuthRequest = () => {
         params: params,
         headers: {
           ...headers
-          // 'x-api-key': config?.apiKey,
-          // 'author': user?.profile.email || 'anonumous user'
         },
       });
       return response.data;
     } catch (error) {
-      // if (error instanceof Error) {
-      //   alertMsg(error.message);
-      // }
       throw error;
     }
   };

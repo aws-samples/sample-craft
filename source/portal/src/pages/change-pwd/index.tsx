@@ -16,8 +16,6 @@ import { changeLanguage, removeKeysWithPrefix } from 'src/utils/utils';
 import { confirmSignIn, fetchAuthSession, getCurrentUser, signIn } from '@aws-amplify/auth';
 import { Amplify } from 'aws-amplify';
 import ConfigContext from 'src/context/config-context';
-// import { changePassword, currentAuthenticatedUser } from '@aws-amplify/auth';
-// import { Auth } from '@aws-amplify/auth';
 
 const ChangePWD: FC = () => {
   const location = useLocation();
@@ -55,14 +53,6 @@ const ChangePWD: FC = () => {
       i18n.changeLanguage(EN_LANG);
     }
 
-    // const loadConfig = async () => {
-    //   let response = await fetch('/config.yaml');
-    //   let data = await response.text();
-    //   return yaml.parse(data);
-    // };
-    // loadConfig().then((configData) => {
-    //   setProjectName(configData.project);
-    // });
   }, []);
   const toLogin = () => {
     navigate(ROUTES.Login);
@@ -325,25 +315,3 @@ const ChangePWD: FC = () => {
 };
 
 export default ChangePWD;
-// const respondToNewPasswordChallenge = async (
-//   session: any,
-//   region: string,
-//   clientId: string,
-//   username: any,
-//   newPass: string,
-// ) => {
-//   const params = {
-//     ChallengeName: ChallengeNameType.NEW_PASSWORD_REQUIRED,
-//     ClientId: clientId,
-//     Session: session,
-//     ChallengeResponses: {
-//       USERNAME: username,
-//       NEW_PASSWORD: newPass,
-//     },
-//   };
-//   const client = new CognitoIdentityProviderClient({
-//     region,
-//   });
-//   const command = new RespondToAuthChallengeCommand(params);
-//   return await client.send(command);
-// };
