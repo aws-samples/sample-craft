@@ -1,34 +1,30 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from 'react-oidc-context';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
+// import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { setLatestUserMessage } from 'src/app/slice/cs-workspace';
-import ConfigContext from 'src/context/config-context';
+// import ConfigContext from 'src/context/config-context';
 import useAxiosWorkspaceRequest from 'src/hooks/useAxiosWorkspaceRequest';
-import { ChatMessageResponse, ChatMessageType } from 'src/types';
-import { formatTime } from 'src/utils/utils';
+import { BaseConfig, ChatMessageResponse, ChatMessageType } from 'src/types';
+import { formatTime, initialSSEConnection } from 'src/utils/utils';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
 import { useTranslation } from 'react-i18next';
+import { ReadyState } from 'src/utils/const';
 
 const UserMessage: React.FC = () => {
   const { t } = useTranslation();
-  const config = useContext(ConfigContext);
+  // const config = useContext(ConfigContext);
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
   const dispatch = useAppDispatch();
   const auth = useAuth();
   const request = useAxiosWorkspaceRequest();
   const [message, setMessage] = useState('');
   const [messageList, setMessageList] = useState<ChatMessageType[]>([]);
-  const { lastMessage, sendMessage, readyState } = useWebSocket(
-    `${config?.workspaceWebsocket}?idToken=${auth.user?.id_token}&user_id=${auth.user?.profile?.sub}&session_id=${csWorkspaceState.currentSessionId}&role=agent`,
-    {
-      onOpen: () => console.log('opened'),
-      shouldReconnect: () => true,
-    },
-  );
+  const [requestContent, setRequestContent] = useState<BaseConfig>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -86,7 +82,7 @@ const UserMessage: React.FC = () => {
     if (!message.trim()) return;
 
     setIsSending(true);
-    const sendMessageObj = {
+    const content = {
       query: message,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
@@ -95,7 +91,8 @@ const UserMessage: React.FC = () => {
     };
 
     try {
-      sendMessage(JSON.stringify(sendMessageObj));
+      setRequestContent(content);
+      // sendMessage(JSON.stringify(sendMessageObj));
       setMessageList((prev) => [
         ...prev,
         {
@@ -114,6 +111,24 @@ const UserMessage: React.FC = () => {
     }
   };
 
+  const readyState = initialSSEConnection("/ccp-stream",requestContent, (data) => {
+    console.log('Received SSE message:', data);
+  try {
+    // const message = JSON.parse(data);
+    // if (message.message_type === 'MONITOR') {
+    //   setCurrentMonitorMessage((prev) => {
+    //     return prev + (message?.message ?? '');
+    //   });
+    // } else {
+    //   handleAIMessage(message);
+    // }
+  } catch (error) {
+    console.error('Error parsing SSE message:', error);
+  }
+}, (err) =>{
+  console.error('SSE failed', err);
+})
+
   useEffect(() => {
     if (csWorkspaceState.autoSendMessage) {
       setIsSending(true);
@@ -126,7 +141,7 @@ const UserMessage: React.FC = () => {
       };
 
       try {
-        sendMessage(JSON.stringify(sendMessageObj));
+        setRequestContent(sendMessageObj);
         setMessageList((prev) => [
           ...prev,
           {
@@ -145,11 +160,11 @@ const UserMessage: React.FC = () => {
     }
   }, [csWorkspaceState.autoSendMessage]);
 
-  useEffect(() => {
-    if (lastMessage) {
-      console.log(lastMessage);
-    }
-  }, [lastMessage]);
+  // useEffect(() => {
+  //   if (lastMessage) {
+  //     console.log(lastMessage);
+  //   }
+  // }, [lastMessage]);
 
   // 初始化 lastUserMessageId
   useEffect(() => {
@@ -209,7 +224,7 @@ const UserMessage: React.FC = () => {
             handleSend();
           }}
           className="send-btn"
-          disabled={readyState !== ReadyState.OPEN}
+          disabled={readyState !== ReadyState.SUCCESS}
         >
           <span className="icon">💬</span>
           {t('button.send')}

@@ -1,18 +1,11 @@
 import moment from 'moment';
 import { jwtDecode } from "jwt-decode";
-import { EN_LANG, OIDC_PREFIX, OIDC_STORAGE, ZH_LANG } from './const';
+import { EN_LANG, OIDC_PREFIX, OIDC_PROVIDER, OIDC_STORAGE, ZH_LANG } from './const';
 import { Dispatch, SetStateAction } from 'react';
 import { Config } from 'src/context/config-context';
+import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
+import { AlertType, BaseConfig } from 'src/types';
 export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
-
-export type AlertType = 'error' | 'warning' | 'info' | 'success';
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-  error: string;
-}
-
 
 
 export const alertMsg = (alertTxt: string, alertType: AlertType = 'error') => {
@@ -112,15 +105,6 @@ export const isTokenExpired = (): boolean => {
   }
 }
 
-// export const toQueryString = (message: Record<string, any>): string  =>{
-//   const params = new URLSearchParams();
-//   for (const [key, value] of Object.entries(message)) {
-//     const encodedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-//     params.append(key, encodedValue);
-//   }
-//   return params.toString(); 
-// }
-
 export const buildUrlParams = (params: Record<string, any>): string => {
   const urlParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -129,4 +113,36 @@ export const buildUrlParams = (params: Record<string, any>): string => {
     }
   });
   return urlParams.toString();
+}
+
+export const initialSSEConnection = (
+  path: string = '/stream',
+  requestContent: BaseConfig, 
+  onMessage: (data: any) => void,
+  onError: (err: any) => void
+) => {
+  return useAxiosSSERequest({
+    path,
+    params: buildUrlParams(requestContent),
+    onMessage,
+    onError,
+  });
+}
+
+export const genHeaderOidcInfo =(config: Config | null)=>{
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '')
+  switch(oidc.provider){
+    case OIDC_PROVIDER.AUTHING:
+      return JSON.stringify({
+        provider: oidc?.provider,
+        clientId: oidc?.clientId,
+        redirectUri: oidc?.redirectUri,
+      })
+    default:
+      return JSON.stringify({
+        provider: oidc?.provider,
+        clientId: config?.oidcClientId,
+        poolId: config?.oidcPoolId,
+      })
+  } 
 }

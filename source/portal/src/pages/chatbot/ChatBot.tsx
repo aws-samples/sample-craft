@@ -55,11 +55,12 @@ import {
   GUARDRAIL_IDENTIFIER,
   GUARDRAIL_VERSION,
   MODE,
+  ReadyState,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
-import { MessageDataType, SessionMessage } from 'src/types';
-import { buildUrlParams, getCredentials, isTokenExpired, isValidJson } from 'src/utils/utils';
-import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
+import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
+import { getCredentials, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
+// import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
   messageId: string;
@@ -146,8 +147,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       },
     },
   ]);
-  // const eventSourceRef = useRef<EventSource | null>(null);
-  // const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [userMessage, setUserMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -197,14 +197,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [modelOption, setModelOption] = useState(
     localModel ?? defaultConfig.model,
   );
-  // if (localModelType.value === 'SageMaker'){
+
   const [sageMakerEndpointOption, setSageMakerEndpointOption] =
     useState<SelectProps.Option>(null as any);
-
-  // if (localModelType.value === 'SageMaker'){
-
-  // }
-  // }
   const [modelType, setModelType] = useState<SelectProps.Option>(
     localModelType ?? defaultConfig.modelType,
   );
@@ -276,7 +271,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   >([]);
 
   const fetchAPIData = useAxiosRequest();
-  const [requestContent, setRequestContent] = useState<any>({
+  const [requestContent, setRequestContent] = useState<BaseConfig>({
     query: "",
     entry_type: 'common',
     session_id: "",
@@ -701,11 +696,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       setShowMessageError(true);
       return;
     }
-    // validate websocket status
-    // if (readyState !== ReadyState.OPEN) {
-    //   return;
-    // }
-    // validate model settings
+
     if (
       modelType.value === 'Bedrock API' ||
       modelType.value === 'OpenAI API' ||
@@ -910,13 +901,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       };
     }
 
-    console.info('send message:', message);
     setRequestContent(message);
-    // await fetchData({
-    //   url: `/stream?${toQueryString(message)}`,
-    //   method: 'get'
-    // })
-    // sendMessage(JSON.stringify(message));
 
     // Only add to messages if it's a new message (not regeneration)
     if (!customQuery) {
@@ -938,10 +923,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
 
-  const readyState = useAxiosSSERequest({
-    params: buildUrlParams(requestContent),
-    onMessage: (data) => {
-      console.log('Received SSE message:', data);
+  const readyState = initialSSEConnection("/stream", requestContent, (data) => {
+        console.log('Received SSE message:', data);
       try {
         const message = JSON.parse(data);
         if (message.message_type === 'MONITOR') {
@@ -954,21 +937,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       } catch (error) {
         console.error('Error parsing SSE message:', error);
       }
-    },
-    onError: (err) => {
-      console.error('SSE failed', err);
-      // Only set error state if we're not in the middle of a message
-      if (!aiSpeaking) {
-        // setStatus('error');
-      }
-    },
-  });
-
-
+  }, (err) =>{
+    console.error('SSE failed', err);
+    if (!aiSpeaking) {
+    }
+  })
 
   const useLocalStorageValue = (key: string) => {
     const [value, setValue] = useState(() => localStorage.getItem(key));
-  
     useEffect(() => {
       const interval = setInterval(() => {
         const currentValue = localStorage.getItem(key);
@@ -977,7 +953,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   
       return () => clearInterval(interval);
     }, [key]);
-  
     return value;
   }
 
@@ -2006,8 +1981,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                       </div>
                       <div className="flex align-center gap-10">
                         <Box variant="p">{t('server')}: </Box>
-                        <StatusIndicator type={readyState || 'in-progress'}>
-                          {t(readyState == 'in-progress' ? 'connecting': (readyState || 'connecting'))}
+                        <StatusIndicator type={readyState || "in-progress"}>
+                          {t(readyState == ReadyState.CONNECTING ? 'connecting': (readyState || 'connecting'))}
                         </StatusIndicator>
                       </div>
                     </div>

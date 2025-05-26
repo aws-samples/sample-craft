@@ -28,7 +28,6 @@ import { SharedConstructOutputs } from "../shared/shared-construct";
 import { LambdaFunction } from "../shared/lambda-helper";
 import { Runtime, Code } from "aws-cdk-lib/aws-lambda";
 import { ApiConstructOutputs } from "../api/api-stack";
-import { WSWebSocketConstruct } from "./websocket-api";
 import { QueueConstruct } from "../chat/chat-queue";
 import { UiExportsConstruct } from "../ui/ui-exports";
 import { ModelConstructOutputs } from "../model/model-construct";
@@ -120,6 +119,7 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
           "Authorization",
           "X-Api-Key",
           "Author",
+          "Oidc-Info",
           "X-Amz-Security-Token",
         ],
         allowMethods: apigw.Cors.ALL_METHODS,
@@ -163,35 +163,35 @@ export class WorkspaceStack extends Stack implements WorkspaceOutputs {
     const apiResourceMessages = apiResourceSessionId.addResource("messages");
     apiResourceMessages.addMethod("GET", new apigw.LambdaIntegration(restQueryHandler), genMethodOption(workspaceApi, auth, null),);
     
-    const wsDispatcher = new LambdaFunction(this, "WorkspaceDispatcher", {
-      // functionName: `${id}-ws-dispatcher`,
-      code: Code.fromAsset(join(__dirname, "../../../lambda/workspace")),
-      environment: {
-        SQS_QUEUE_URL: chatQueueConstruct.messageQueue.queueUrl,
-      },
-      statements: [chatQueueConstruct.sqsStatement],
-    });
+    // const wsDispatcher = new LambdaFunction(this, "WorkspaceDispatcher", {
+    //   // functionName: `${id}-ws-dispatcher`,
+    //   code: Code.fromAsset(join(__dirname, "../../../lambda/workspace")),
+    //   environment: {
+    //     SQS_QUEUE_URL: chatQueueConstruct.messageQueue.queueUrl,
+    //   },
+    //   statements: [chatQueueConstruct.sqsStatement],
+    // });
 
-    const wsQueryHandler = new PythonFunction(this, "WebSocketQueryHandler", {
-      // functionName: `${id}-ws-query-handler`,
-      runtime: Runtime.PYTHON_3_12,
-      memorySize: 512,
-      entry: join(__dirname, "../../../lambda/query_handler"),
-      index: "websocket_api.py",
-      handler: "lambda_handler",
-      timeout: Duration.minutes(15),
-      environment: {
-        SESSIONS_TABLE_NAME: customerSessionsTable.tableName,
-        MESSAGES_TABLE_NAME: customerMessagesTable.tableName,
-        SESSIONS_BY_TIMESTAMP_INDEX_NAME: "byTimestamp",
-        MESSAGES_BY_SESSION_ID_INDEX_NAME: "bySessionId",
-      },
-    });
-    wsQueryHandler.addToRolePolicy(this.iamHelper.dynamodbStatement);    
-    wsQueryHandler.addToRolePolicy(chatQueueConstruct.sqsStatement);
-    wsQueryHandler.addEventSource(
-      new lambdaEventSources.SqsEventSource(chatQueueConstruct.messageQueue, { batchSize: 1 }),
-    );
+    // const wsQueryHandler = new PythonFunction(this, "WebSocketQueryHandler", {
+    //   // functionName: `${id}-ws-query-handler`,
+    //   runtime: Runtime.PYTHON_3_12,
+    //   memorySize: 512,
+    //   entry: join(__dirname, "../../../lambda/query_handler"),
+    //   index: "websocket_api.py",
+    //   handler: "lambda_handler",
+    //   timeout: Duration.minutes(15),
+    //   environment: {
+    //     SESSIONS_TABLE_NAME: customerSessionsTable.tableName,
+    //     MESSAGES_TABLE_NAME: customerMessagesTable.tableName,
+    //     SESSIONS_BY_TIMESTAMP_INDEX_NAME: "byTimestamp",
+    //     MESSAGES_BY_SESSION_ID_INDEX_NAME: "bySessionId",
+    //   },
+    // });
+    // wsQueryHandler.addToRolePolicy(this.iamHelper.dynamodbStatement);    
+    // wsQueryHandler.addToRolePolicy(chatQueueConstruct.sqsStatement);
+    // wsQueryHandler.addEventSource(
+    //   new lambdaEventSources.SqsEventSource(chatQueueConstruct.messageQueue, { batchSize: 1 }),
+    // );
 
     const uiExports = new UiExportsConstruct(this, "MainUIExportAsset", {
       portalBucketName: props.portalBucketName,

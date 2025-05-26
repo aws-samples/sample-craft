@@ -1,8 +1,7 @@
 import { Alert } from '@cloudscape-design/components';
 import classnames from 'classnames';
 import React, { useEffect, useState } from 'react';
-
-import { AlertType } from 'src/utils/utils';
+import { AlertType } from 'src/types';
 
 interface CommonAlertProps {
   alertTxt: string;

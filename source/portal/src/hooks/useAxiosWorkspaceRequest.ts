@@ -1,23 +1,13 @@
 import axios from 'axios';
-import { User } from 'oidc-client-ts';
 import { useContext } from 'react';
 import ConfigContext from 'src/context/config-context';
-import { alertMsg } from 'src/utils/utils';
+import { alertMsg, genHeaderOidcInfo, getCredentials, isTokenExpired } from 'src/utils/utils';
 
-function getUser(authority?: string, clientId?: string) {
-  const oidcStorage = localStorage.getItem(
-    `oidc.user:${authority}:${clientId}`,
-  );
-  if (!oidcStorage) {
-    return null;
-  }
-  return User.fromStorageString(oidcStorage);
-}
 
 const useAxiosWorkspaceRequest = () => {
   const config = useContext(ConfigContext);
-  const user = getUser(config?.oidcIssuer, config?.oidcClientId);
-  const token = user?.id_token;
+  
+  const token = getCredentials();
   const sendRequest = async ({
     url = '',
     method = 'get',
@@ -31,6 +21,10 @@ const useAxiosWorkspaceRequest = () => {
     headers?: any;
     params?: any;
   }) => {
+    if(isTokenExpired()){
+      window.location.href = '/login'
+      return null
+    }
     try {
       const response = await axios({
         method: method,
@@ -39,9 +33,8 @@ const useAxiosWorkspaceRequest = () => {
         params: params,
         headers: {
           ...headers,
-          Authorization: `Bearer ${token}`,
-          // 'x-api-key': config?.apiKey,
-          // 'author': user?.profile.email || 'anonumous user'
+          'Authorization': `Bearer ${token.access_token || token.idToken}`,
+          'Oidc-Info': genHeaderOidcInfo(config)
         },
       });
       return response.data;

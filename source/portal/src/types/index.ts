@@ -418,3 +418,14 @@ export interface ChatMessageResponse {
   Count: number;
   Config: ResponseConfig;
 }
+export interface BaseConfig {
+  [key: string]: string | number | boolean | BaseConfig | undefined;
+}
+
+export type AlertType = 'error' | 'warning' | 'info' | 'success';
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  error: string;
+}
