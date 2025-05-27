@@ -91,7 +91,7 @@ exports.handler = async (event, context) => {
       ...existingOrigins,
       // Add ALB origin
       {
-        Id: 'OriginForALB',
+        Id: 'OriginForALB' + Date.now(),
         DomainName: albEndpoint,
         OriginPath: '',
         CustomOriginConfig: {

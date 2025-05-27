@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { useContext } from 'react';
-import ConfigContext, { Config } from 'src/context/config-context';
-import { OIDC_PROVIDER, OIDC_STORAGE } from 'src/utils/const';
-import { alertMsg, getCredentials, isTokenExpired } from 'src/utils/utils';
+import ConfigContext from 'src/context/config-context';
+import { alertMsg, genHeaderOidcInfo, getCredentials, isTokenExpired } from 'src/utils/utils';
 
 
 const useAxiosRequest = () => {
@@ -48,24 +47,5 @@ const useAxiosRequest = () => {
   };
   return sendRequest;
 };
-
-const genHeaderOidcInfo =(config: Config | null)=>{
-  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '')
-  switch(oidc.provider){
-    case OIDC_PROVIDER.AUTHING:
-      return JSON.stringify({
-        provider: oidc?.provider,
-        clientId: oidc?.clientId,
-        redirectUri: oidc?.redirectUri,
-      })
-    default:
-      return JSON.stringify({
-        provider: oidc?.provider,
-        clientId: config?.oidcClientId,
-        poolId: config?.oidcPoolId,
-  })
-}
-  
-}
 
 export default useAxiosRequest;

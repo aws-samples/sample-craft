@@ -1,11 +1,9 @@
-import React, { useContext, useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { identity } from 'lodash';
 import { Button, Spinner, Textarea } from '@cloudscape-design/components';
 import Message from '../../chatbot/components/Message';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
-import ConfigContext from 'src/context/config-context';
-import { DocumentData, MessageDataType, SessionMessage } from 'src/types';
+import { BaseConfig, DocumentData, MessageDataType, SessionMessage } from 'src/types';
 import { useAuth } from 'react-oidc-context';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
@@ -15,6 +13,8 @@ import {
   setCurrentSessionId,
 } from 'src/app/slice/cs-workspace';
 import { v4 as uuidv4 } from 'uuid';
+import { OIDC_STORAGE, ReadyState } from 'src/utils/const';
+import { getGroupName, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
 interface MessageType {
   messageId: string;
   type: 'ai' | 'human';
@@ -27,11 +27,10 @@ interface MessageType {
 
 export const ChatMessage: React.FC = () => {
   const { t } = useTranslation();
-  const config = useContext(ConfigContext);
   const dispatch = useAppDispatch();
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
 
-  const auth = useAuth();
+  // const auth = useAuth();
   const fetchData = useAxiosRequest();
   const { id } = useParams();
   const [aiSpeaking, setAiSpeaking] = useState(false);
@@ -42,9 +41,15 @@ export const ChatMessage: React.FC = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
   const [isMessageEnd, setIsMessageEnd] = useState(false);
+  const [requestContent, setRequestContent] = useState<BaseConfig>({});
   const [currentDocumentList, setCurrentDocumentList] = useState<
     DocumentData[]
   >([]);
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  if(isTokenExpired()){
+    window.location.href = '/login'
+    return null
+  }
   const [messages, setMessages] = useState<MessageType[]>([
     {
       messageId: id ?? '',
@@ -75,16 +80,6 @@ export const ChatMessage: React.FC = () => {
       scrollToBottom(100);
     }
   }, [aiSpeaking, currentAIMessage]);
-
-  const { lastMessage, sendMessage, readyState } = useWebSocket(
-    `${config?.websocket}?idToken=${auth.user?.id_token}`,
-    {
-      onOpen: () => console.log('opened'),
-      shouldReconnect: () => true,
-    },
-  );
-  //   const [currentAIMessageId, setCurrentAIMessageId] = useState('');
-  //   const [isMessageEnd, setIsMessageEnd] = useState(false);
 
   const getSessionHistoryById = async (isRefresh = false) => {
     try {
@@ -147,12 +142,13 @@ export const ChatMessage: React.FC = () => {
     setCurrentMonitorMessage('');
     setIsMessageEnd(false);
     setCurrentDocumentList([]);
-    const groupName: string[] = auth?.user?.profile?.['cognito:groups'] as any;
+    const groupName: any = getGroupName();
+    // const groupName: string[] = auth?.user?.profile?.['cognito:groups'] as any;
     let message = {
       query: autoMessage || userMessage,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
-      user_id: auth?.user?.profile?.['cognito:username'] || 'default_user_id',
+      user_id: oidc['username'] || 'default_user_id',
       chatbot_config: {
         max_rounds_in_memory: 7,
         group_name: groupName?.[0] ?? 'Admin',
@@ -179,8 +175,8 @@ export const ChatMessage: React.FC = () => {
         },
       },
     };
-
-    sendMessage(JSON.stringify(message));
+    setRequestContent(message);
+    // sendMessage(JSON.stringify(message));
     if (!autoMessage) {
       setMessages((prev) => {
         return [
@@ -259,19 +255,37 @@ export const ChatMessage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (lastMessage !== null) {
-      console.log(lastMessage);
-      const message: MessageDataType = JSON.parse(lastMessage.data);
-      if (message.message_type === 'MONITOR') {
-        setCurrentMonitorMessage((prev) => {
-          return prev + (message?.message ?? '');
-        });
-      } else {
-        handleAIMessage(message);
-      }
+  const readyState = initialSSEConnection("/ccp-stream", requestContent, (data) => {
+    console.log('Received SSE message:', data);
+  try {
+    const message = JSON.parse(data);
+    if (message.message_type === 'MONITOR') {
+      setCurrentMonitorMessage((prev) => {
+        return prev + (message?.message ?? '');
+      });
+    } else {
+      handleAIMessage(message);
     }
-  }, [lastMessage]);
+  } catch (error) {
+    console.error('Error parsing SSE message:', error);
+  }
+}, (err) =>{
+  console.error('SSE failed', err);
+})
+
+  // useEffect(() => {
+  //   if (lastMessage !== null) {
+  //     console.log(lastMessage);
+  //     const message: MessageDataType = JSON.parse(lastMessage.data);
+  //     if (message.message_type === 'MONITOR') {
+  //       setCurrentMonitorMessage((prev) => {
+  //         return prev + (message?.message ?? '');
+  //       });
+  //     } else {
+  //       handleAIMessage(message);
+  //     }
+  //   }
+  // }, [lastMessage]);
 
   useEffect(() => {
     if (id) {
@@ -378,7 +392,7 @@ export const ChatMessage: React.FC = () => {
                   e.detail.key === 'Enter' &&
                   !e.detail.shiftKey && // 添加 shift+enter 支持换行
                   !aiSpeaking &&
-                  readyState === ReadyState.OPEN
+                  readyState === ReadyState.SUCCESS
                 ) {
                   e.preventDefault();
                   handleSendMessage();
@@ -388,7 +402,7 @@ export const ChatMessage: React.FC = () => {
           </div>
           <div>
             <Button
-              disabled={aiSpeaking || readyState !== ReadyState.OPEN}
+              disabled={aiSpeaking || readyState !== ReadyState.SUCCESS}
               onClick={() => {
                 handleSendMessage();
               }}

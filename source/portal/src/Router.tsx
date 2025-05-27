@@ -9,14 +9,14 @@ import ReSignIn from './comps/ReSignIn';
 import SessionHistory from './pages/history/SessionHistory';
 import SessionDetail from './pages/history/SessionDetail';
 import PromptList from './pages/prompts/PromptList';
-import ChatbotManagement from './pages/chatbotManagement/ChatbotManagement';
+import ChatbotManagement from './pages/chatbot-management/ChatbotManagement';
 
 // import LoginCallback from './comps/LoginCallback';
 import Intention from './pages/intention/Intention';
 import IntentionDetail from './pages/intention/IntentionDetail';
 import Home from './pages/home/Home';
-import ChatbotDetail from './pages/chatbotManagement/ChatbotDetail';
-import CustomerService from './pages/customService/CustomerService';
+import ChatbotDetail from './pages/chatbot-management/ChatbotDetail';
+import CustomerService from './pages/custom-service/CustomerService';
 import { ROUTES } from './utils/const';
 import Login from './pages/login';
 import FindPWD from './pages/find-pwd';

@@ -440,6 +440,12 @@ export const OIDC_PROVIDER = {
   COGNITO: 'cognito'
 };
 
+export const ReadyState = {
+  SUCCESS: 'success',
+  CONNECTING: 'in-progress',
+  ERROR: 'error'
+}
+
 // export const TOKEN = "oidc"
 export const OIDC_PREFIX = "oidc."
 export const USER = "user"

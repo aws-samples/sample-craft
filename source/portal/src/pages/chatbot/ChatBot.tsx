@@ -3,7 +3,6 @@ import CommonLayout from 'src/layout/CommonLayout';
 import Message from './components/Message';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useTranslation } from 'react-i18next';
-import { decodeJwt } from 'jose';
 import {
   Autosuggest,
   Box,
@@ -55,11 +54,12 @@ import {
   GUARDRAIL_IDENTIFIER,
   GUARDRAIL_VERSION,
   MODE,
+  ReadyState,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
-import { MessageDataType, SessionMessage } from 'src/types';
-import { buildUrlParams, getCredentials, isTokenExpired, isValidJson } from 'src/utils/utils';
-import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
+import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
+import { getCredentials, getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
+// import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
   messageId: string;
@@ -106,9 +106,7 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const isValidArn = (arn: string): boolean => {
-  // AWS Global and China ARN patterns
-  // arn:aws:secretsmanager:region:account-id:secret:name
-  // arn:aws-cn:secretsmanager:region:account-id:secret:name
+
   const arnPattern =
     /^arn:aws(?:-cn)?:secretsmanager:[a-z0-9-]+:\d{12}:secret:.+$/;
   return arnPattern.test(arn);
@@ -117,8 +115,7 @@ const isValidArn = (arn: string): boolean => {
 const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const { historySessionId } = props;
   const [loadingChatBots, setLoadingChatBots] = useState(false);
-  // const [loadingModel, setLoadingModel] = useState(false);
-  // const [loadingModelList, setLoadingModelList] = useState(false);
+
   const tmpModelType = localStorage.getItem(MODEL_TYPE);
   const localModelType = tmpModelType ? JSON.parse(tmpModelType) : null;
   const localModel = localStorage.getItem(MODEL_OPTION);
@@ -135,13 +132,10 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const localApiKeyArn = localStorage.getItem(API_KEY_ARN);
   const localGuardrailIdentifier = localStorage.getItem(GUARDRAIL_IDENTIFIER);
   const localGuardrailVersion = localStorage.getItem(GUARDRAIL_VERSION);
-  // const config = useContext(ConfigContext);
   const isFirstRender = useRef(true);
   const { t } = useTranslation();
-  // const auth = useAuth();
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [guardrailVersionError, setGuardrailVersionError] = useState('');
-  // const [readyState, setReadyState] = useState(false);
   const [messages, setMessages] = useState<MessageType[]>([
     {
       messageId: uuidv4(),
@@ -152,8 +146,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       },
     },
   ]);
-  // const eventSourceRef = useRef<EventSource | null>(null);
-  // const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [userMessage, setUserMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -163,16 +156,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     window.location.href = '/login'
     return null
   }
-  // let heartbeatTimer: NodeJS.Timeout | null = null;
-  // let isConnected = false;
-  // let sseUrlPrefix = `?idToken=${getCredentials().idToken}&provider=${oidc.provider}&clientId=${config?.oidcClientId}&poolId=${config?.oidcPoolId}`;
-  // if (oidc.provider === 'authing') {
-  //   sseUrlPrefix = `?idToken=${getCredentials().access_token}&provider=${oidc.provider}&clientId=${oidc.clientId}&redirectUri=${oidc.redirectUri}`;
-  // }
-  // const { lastMessage, sendMessage, readyState } = useWebSocket(wsUrl, {
-  //   onOpen: () => console.log('opened'),
-  //   shouldReconnect: () => true,
-  // });
+
   const [currentAIMessage, setCurrentAIMessage] = useState('');
   const [currentMonitorMessage, setCurrentMonitorMessage] = useState('');
   const [currentAIMessageId, setCurrentAIMessageId] = useState('');
@@ -212,14 +196,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [modelOption, setModelOption] = useState(
     localModel ?? defaultConfig.model,
   );
-  // if (localModelType.value === 'SageMaker'){
+
   const [sageMakerEndpointOption, setSageMakerEndpointOption] =
     useState<SelectProps.Option>(null as any);
-
-  // if (localModelType.value === 'SageMaker'){
-
-  // }
-  // }
   const [modelType, setModelType] = useState<SelectProps.Option>(
     localModelType ?? defaultConfig.modelType,
   );
@@ -290,20 +269,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     { label: string; value: string }[]
   >([]);
 
-  // const [status, setStatus] = useState<'in-progress'|'success'|'error'>('in-progress');
-
-  // const connectionStatus = {
-  //   [ReadyState.CONNECTING]: 'loading',
-  //   [ReadyState.OPEN]: 'success',
-  //   [ReadyState.CLOSING]: 'closing',
-  //   [ReadyState.CLOSED]: 'error',
-  //   [ReadyState.UNINSTANTIATED]: 'pending',
-  // }[readyState];
-
-  // const fetchData = useAxiosRequest();
-  // const fetchData = useAxiosSSERequest();
   const fetchAPIData = useAxiosRequest();
-  const [requestContent, setRequestContent] = useState<any>({
+  const [requestContent, setRequestContent] = useState<BaseConfig>({
     query: "",
     entry_type: 'common',
     session_id: "",
@@ -393,10 +360,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       const chatbots: { chatbotId: string; ModelProvider: string }[] =
         data.items;
       const getChatbots = chatbots.map((item) => {
-        // setChatbotModelProvider((prev) => ({
-        //   ...prev,
-        //   [item.chatbotId]: item.ModelProvider,
-        // }));
+
         return {
           label: item.chatbotId,
           value: item.chatbotId,
@@ -443,17 +407,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       });
       const sessionMessage: SessionMessage[] = data.Items;
 
-      // Get chatbotId from first message if available
       if (sessionMessage && sessionMessage.length > 0) {
         const chatbotId = sessionMessage[0].chatbotId;
-        // Store chatbotId for use in getWorkspaceList
         localStorage.setItem(HISTORY_CHATBOT_ID, chatbotId);
       }
 
       setMessages(
         sessionMessage.map((msg) => {
           let messageContent = msg.content;
-          // Handle AI images message
           if (
             showFigures &&
             msg.role === 'ai' &&
@@ -480,36 +441,13 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
   useEffect(() => {
-    // let timer: NodeJS.Timeout;
-
-    // const checkHeartbeat = async () => {
-    //   try {
-    //     const response = await fetchData({
-    //       url: `/health`,
-    //       method: 'get',
-    //     });
-    //     if (response.message ==='OK') {
-    //       setReadyState(true);
-    //     } else {
-    //       setReadyState(false);
-    //     }
-    //   } catch (error) {
-    //     setReadyState(false);
-    //   }
-    // };
-    // checkHeartbeat();
-
-    // timer = setInterval(checkHeartbeat, HEARTBEAT_INTERVAL);
-
     const initializeChatbot = async () => {
       setLoadingChatBots(true);
       if (historySessionId) {
-        // Wait for getSessionHistoryById to complete to set history chatbotId
         await getSessionHistoryById();
       } else {
         setSessionId(uuidv4());
       }
-      // Call getWorkspaceList after getSessionHistoryById
       getWorkspaceList();
     };
 
@@ -536,20 +474,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     setLoadingChatBots(false);
     setModelList(LLM_BOT_COMMON_MODEL_LIST);
 
-
-    
-    // return () => {
-    //   if (eventSourceRef.current) {
-    //     eventSourceRef.current.close();
-    //   }
-    //   clearInterval(timer)};
   }, []);
-
-
-  // useEffect(()=>{
-  //   const es = new EventSource(`http://${config?.albUrl}/stream?${toQueryString(message)}}`);
-  //   eventSourceRef.current = es;
-  // },[toQueryString(message)])
 
   useEffect(()=>{
     if(guardrailVersion.trim()){
@@ -770,11 +695,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       setShowMessageError(true);
       return;
     }
-    // validate websocket status
-    // if (readyState !== ReadyState.OPEN) {
-    //   return;
-    // }
-    // validate model settings
+
     if (
       modelType.value === 'Bedrock API' ||
       modelType.value === 'OpenAI API' ||
@@ -979,13 +900,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       };
     }
 
-    console.info('send message:', message);
     setRequestContent(message);
-    // await fetchData({
-    //   url: `/stream?${toQueryString(message)}`,
-    //   method: 'get'
-    // })
-    // sendMessage(JSON.stringify(message));
 
     // Only add to messages if it's a new message (not regeneration)
     if (!customQuery) {
@@ -1007,10 +922,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     }
   };
 
-  const readyState = useAxiosSSERequest({
-    params: buildUrlParams(requestContent),
-    onMessage: (data) => {
-      console.log('Received SSE message:', data);
+  const readyState = initialSSEConnection("/stream", requestContent, (data) => {
+        console.log('Received SSE message:', data);
       try {
         const message = JSON.parse(data);
         if (message.message_type === 'MONITOR') {
@@ -1023,21 +936,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       } catch (error) {
         console.error('Error parsing SSE message:', error);
       }
-    },
-    onError: (err) => {
-      console.error('SSE failed', err);
-      // Only set error state if we're not in the middle of a message
-      if (!aiSpeaking) {
-        // setStatus('error');
-      }
-    },
-  });
-
-
+  }, (err) =>{
+    console.error('SSE failed', err);
+    if (!aiSpeaking) {
+    }
+  })
 
   const useLocalStorageValue = (key: string) => {
     const [value, setValue] = useState(() => localStorage.getItem(key));
-  
     useEffect(() => {
       const interval = setInterval(() => {
         const currentValue = localStorage.getItem(key);
@@ -1046,7 +952,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   
       return () => clearInterval(interval);
     }, [key]);
-  
     return value;
   }
 
@@ -1107,14 +1012,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     [key: string]: 'thumb_up' | 'thumb_down' | null;
   }>({});
 
-  const getGroupName = () => {
-    if (oidc.provider === 'cognito') {
-      const credentials = getCredentials();
-      const claim = decodeJwt(credentials.idToken);
-      return claim['cognito:groups'];
-    }
-    return ['Admin'];
-  };
+  // const getGroupName = () => {
+  //   if (oidc.provider === 'cognito') {
+  //     const credentials = getCredentials();
+  //     const claim = decodeJwt(credentials.idToken);
+  //     return claim['cognito:groups'];
+  //   }
+  //   return ['Admin'];
+  // };
 
   const handleThumbUpClick = async (index: number) => {
     const currentFeedback = feedbackGiven[index];
@@ -2075,8 +1980,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                       </div>
                       <div className="flex align-center gap-10">
                         <Box variant="p">{t('server')}: </Box>
-                        <StatusIndicator type={readyState || 'in-progress'}>
-                          {t(readyState == 'in-progress' ? 'connecting': (readyState || 'connecting'))}
+                        <StatusIndicator type={readyState || "in-progress"}>
+                          {t(readyState == ReadyState.CONNECTING ? 'connecting': (readyState || 'connecting'))}
                         </StatusIndicator>
                       </div>
                     </div>

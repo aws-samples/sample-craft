@@ -17,6 +17,9 @@ import {
   ZH_LANGUAGE_LIST,
   ZH_TEXT,
   ROUTES,
+  OIDC_STORAGE,
+  OIDC_PREFIX,
+  OIDC_PROVIDER,
 } from 'src/utils/const';
 import './CustomerService.scss';
 import { initResize } from './resize';
@@ -26,8 +29,9 @@ import UserChatList from './comps/UserChatList';
 import ReferenceDocuments from './comps/ReferenceDocuments';
 import UserMessage from './comps/UserMessage';
 import { formatTime } from 'src/utils/utils';
+import { jwtDecode } from "jwt-decode";
+import { logout } from 'src/request/authing';
 import ConfigContext from 'src/context/config-context';
-import { useAuth } from 'react-oidc-context';
 
 const INIT_WIDTH = 400;
 const MAX_WIDTH = 800;
@@ -46,13 +50,12 @@ const STORAGE_KEYS = [
 
 const CustomerService: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const config = useContext(ConfigContext);
-  const auth = useAuth();
   const [leftWidth, setLeftWidth] = useState(INIT_WIDTH);
   const [rightWidth, setRightWidth] = useState(INIT_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
   const [fullLogoutUrl, setFullLogoutUrl] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const config = useContext(ConfigContext);
 
   const clearStorage = () => {
     STORAGE_KEYS.forEach((key) => {
@@ -69,34 +72,41 @@ const CustomerService: React.FC = () => {
   };
 
   useEffect(() => {
+    let idToken = ""
+    let displayName = "Guest"
+    const oidc = localStorage.getItem(OIDC_STORAGE)
     if (ZH_LANGUAGE_LIST.includes(i18n.language)) {
       changeLanguage(DEFAULT_ZH_LANG);
+    }
+    if (oidc) {
+      const oidcRes = JSON.parse(oidc)
+      const authToken = localStorage.getItem(`${OIDC_PREFIX}${oidcRes.provider}.${oidcRes.clientId}`)
+      if (authToken) {
+        const token = JSON.parse(authToken)
+        if (oidcRes.provider === OIDC_PROVIDER.AUTHING) {
+          idToken = token.id_token
+          const idTokenRes: any = jwtDecode(idToken)
+          displayName = idTokenRes?.name || idTokenRes?.email || idTokenRes?.nickname || displayName
+        } else {
+          displayName = oidcRes.username
+        }
+      }
     }
     if (config?.oidcLogoutUrl) {
       const redirectUrl = config?.oidcRedirectUrl.replace('/signin', '');
       const queryParams = new URLSearchParams({
         client_id: config.oidcClientId,
-        id_token_hint: auth.user?.id_token ?? '',
+        id_token_hint: idToken,
         logout_uri: redirectUrl,
         redirect_uri: redirectUrl,
         post_logout_redirect_uri: redirectUrl,
       });
       const logoutUrl = new URL(config?.oidcLogoutUrl);
       logoutUrl.search = queryParams.toString();
-      setFullLogoutUrl(decodeURIComponent(logoutUrl.toString()));
+    setDisplayName(displayName);
+    setFullLogoutUrl(decodeURIComponent(logoutUrl.toString()));
     }
   }, []);
-
-  useEffect(() => {
-    setDisplayName(
-      auth.user?.profile?.email ||
-        auth.user?.profile?.name ||
-        auth.user?.profile?.preferred_username ||
-        auth.user?.profile?.nickname ||
-        auth.user?.profile?.sub ||
-        '',
-    );
-  }, [auth]);
 
   useEffect(() => {
     const cleanupFns = [
@@ -190,11 +200,10 @@ const CustomerService: React.FC = () => {
             onItemClick: (item) => {
               if (item.detail.id === 'signout') {
                 if (fullLogoutUrl) {
-                  auth.removeUser();
                   clearStorage();
+                  logout();
                   window.location.href = fullLogoutUrl;
                 }
-                auth.removeUser();
               }
             },
             items: [{ id: 'signout', text: t('signOut') }],
