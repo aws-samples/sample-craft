@@ -204,7 +204,7 @@ async def handle_stream_request(
 
 @app.get("/ccp-stream")
 @require_auth
-async def handle_stream_request(
+async def handle_ccp_stream_request(
     request: Request,
     query: str,
     entry_type: str = EntryType.COMMON,
