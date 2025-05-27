@@ -255,7 +255,7 @@ export const ChatMessage: React.FC = () => {
     }
   };
 
-  const readyState = initialSSEConnection("ccp-stream", requestContent, (data) => {
+  const readyState = initialSSEConnection("/ccp-stream", requestContent, (data) => {
     console.log('Received SSE message:', data);
   try {
     const message = JSON.parse(data);

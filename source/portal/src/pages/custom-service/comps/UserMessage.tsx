@@ -1,25 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useAuth } from 'react-oidc-context';
 // import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { setLatestUserMessage } from 'src/app/slice/cs-workspace';
 // import ConfigContext from 'src/context/config-context';
 import useAxiosWorkspaceRequest from 'src/hooks/useAxiosWorkspaceRequest';
 import { BaseConfig, ChatMessageResponse, ChatMessageType } from 'src/types';
-import { formatTime, initialSSEConnection } from 'src/utils/utils';
+import { formatTime, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
 import { useTranslation } from 'react-i18next';
-import { ReadyState } from 'src/utils/const';
+import { OIDC_STORAGE, ReadyState } from 'src/utils/const';
 
 const UserMessage: React.FC = () => {
   const { t } = useTranslation();
   // const config = useContext(ConfigContext);
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
   const dispatch = useAppDispatch();
-  const auth = useAuth();
   const request = useAxiosWorkspaceRequest();
   const [message, setMessage] = useState('');
   const [messageList, setMessageList] = useState<ChatMessageType[]>([]);
@@ -32,6 +30,11 @@ const UserMessage: React.FC = () => {
   const [lastUserMessageId, setLastUserMessageId] = useState<string | null>(
     null,
   );
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  if(isTokenExpired()){
+    window.location.href = '/login'
+    return null
+  }
 
   const getMessageList = async () => {
     const response: ChatMessageResponse = await request({
@@ -86,7 +89,7 @@ const UserMessage: React.FC = () => {
       query: message,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
-      user_id: auth.user?.profile?.sub,
+      user_id: oidc['username'] || 'default_user_id',
       action: 'sendResponse',
     };
 
