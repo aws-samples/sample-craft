@@ -5,8 +5,9 @@ import { Dispatch, SetStateAction } from 'react';
 import { Config } from 'src/context/config-context';
 import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 import { AlertType, BaseConfig } from 'src/types';
-export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+import { decodeJwt } from 'jose';
 
+export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 
 export const alertMsg = (alertTxt: string, alertType: AlertType = 'error') => {
   const patchEvent = new CustomEvent('showAlertMsg', {
@@ -146,3 +147,13 @@ export const genHeaderOidcInfo =(config: Config | null)=>{
       })
   } 
 }
+
+export const getGroupName = () => {
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  if (oidc.provider === 'cognito') {
+    const credentials = getCredentials();
+    const claim = decodeJwt(credentials.idToken);
+    return claim['cognito:groups'];
+  }
+  return ['Admin'];
+};

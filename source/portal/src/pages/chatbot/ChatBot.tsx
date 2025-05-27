@@ -3,7 +3,6 @@ import CommonLayout from 'src/layout/CommonLayout';
 import Message from './components/Message';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useTranslation } from 'react-i18next';
-import { decodeJwt } from 'jose';
 import {
   Autosuggest,
   Box,
@@ -59,7 +58,7 @@ import {
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
-import { getCredentials, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
+import { getCredentials, getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
 // import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
@@ -1013,14 +1012,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     [key: string]: 'thumb_up' | 'thumb_down' | null;
   }>({});
 
-  const getGroupName = () => {
-    if (oidc.provider === 'cognito') {
-      const credentials = getCredentials();
-      const claim = decodeJwt(credentials.idToken);
-      return claim['cognito:groups'];
-    }
-    return ['Admin'];
-  };
+  // const getGroupName = () => {
+  //   if (oidc.provider === 'cognito') {
+  //     const credentials = getCredentials();
+  //     const claim = decodeJwt(credentials.idToken);
+  //     return claim['cognito:groups'];
+  //   }
+  //   return ['Admin'];
+  // };
 
   const handleThumbUpClick = async (index: number) => {
     const currentFeedback = feedbackGiven[index];

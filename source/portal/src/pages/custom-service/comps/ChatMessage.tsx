@@ -13,8 +13,8 @@ import {
   setCurrentSessionId,
 } from 'src/app/slice/cs-workspace';
 import { v4 as uuidv4 } from 'uuid';
-import { ReadyState } from 'src/utils/const';
-import { initialSSEConnection } from 'src/utils/utils';
+import { OIDC_STORAGE, ReadyState } from 'src/utils/const';
+import { getGroupName, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
 interface MessageType {
   messageId: string;
   type: 'ai' | 'human';
@@ -30,7 +30,7 @@ export const ChatMessage: React.FC = () => {
   const dispatch = useAppDispatch();
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
 
-  const auth = useAuth();
+  // const auth = useAuth();
   const fetchData = useAxiosRequest();
   const { id } = useParams();
   const [aiSpeaking, setAiSpeaking] = useState(false);
@@ -45,6 +45,11 @@ export const ChatMessage: React.FC = () => {
   const [currentDocumentList, setCurrentDocumentList] = useState<
     DocumentData[]
   >([]);
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  if(isTokenExpired()){
+    window.location.href = '/login'
+    return null
+  }
   const [messages, setMessages] = useState<MessageType[]>([
     {
       messageId: id ?? '',
@@ -137,12 +142,13 @@ export const ChatMessage: React.FC = () => {
     setCurrentMonitorMessage('');
     setIsMessageEnd(false);
     setCurrentDocumentList([]);
-    const groupName: string[] = auth?.user?.profile?.['cognito:groups'] as any;
+    const groupName: any = getGroupName();
+    // const groupName: string[] = auth?.user?.profile?.['cognito:groups'] as any;
     let message = {
       query: autoMessage || userMessage,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
-      user_id: String(auth?.user?.profile?.['cognito:username'] || 'default_user_id'),
+      user_id: oidc['username'] || 'default_user_id',
       chatbot_config: {
         max_rounds_in_memory: 7,
         group_name: groupName?.[0] ?? 'Admin',
