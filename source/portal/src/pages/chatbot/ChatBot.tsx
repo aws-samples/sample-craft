@@ -58,7 +58,7 @@ import {
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
-import { getCredentials, getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
+import { getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
 // import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
