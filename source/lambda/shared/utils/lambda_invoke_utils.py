@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field, model_validator
 from shared.utils.sse_utils import sse_manager
 
 from ..exceptions import LambdaInvokeError
+import contextvars
+
+state_context_var = contextvars.ContextVar('state_context_var', default=None)
 
 logger = get_logger("lambda_invoke_utils")
 thread_local = threading.local()
@@ -38,20 +41,18 @@ class StateContext:
 
     @classmethod
     def get_current_state(cls):
-        state = CURRENT_STATE
-        assert state is not None, "There is not a valid state in current context"
+        state = state_context_var.get() 
+        # assert state is not None, "There is not a valid state in current context"
         return state
 
     @classmethod
     def set_current_state(cls, state):
-        global CURRENT_STATE
-        assert CURRENT_STATE is None, "Parallel node executions are not alowed"
-        CURRENT_STATE = state
-
+        # assert state_context_var.get() is None, "Parallel node executions are not alowed"
+        state_context_var.set(state)
+      
     @classmethod
     def clear_state(cls):
-        global CURRENT_STATE
-        CURRENT_STATE = None
+        state_context_var.set(None)
 
     def __enter__(self):
         self.set_current_state(self.state)

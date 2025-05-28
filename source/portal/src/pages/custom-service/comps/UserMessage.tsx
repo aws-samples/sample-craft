@@ -114,7 +114,7 @@ const UserMessage: React.FC = () => {
     }
   };
 
-  const readyState = initialSSEConnection("/ccp-stream",requestContent, (data) => {
+  const readyState = initialSSEConnection("/stream",requestContent, (data) => {
     console.log('Received SSE message:', data);
   try {
     // const message = JSON.parse(data);
@@ -139,7 +139,7 @@ const UserMessage: React.FC = () => {
         query: csWorkspaceState.autoSendMessage,
         entry_type: 'common',
         session_id: csWorkspaceState.currentSessionId,
-        user_id: auth.user?.profile?.sub,
+        user_id: oidc['username'] || 'default_user_id',
         action: 'sendResponse',
       };
 
