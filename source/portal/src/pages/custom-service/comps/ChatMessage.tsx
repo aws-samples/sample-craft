@@ -4,7 +4,6 @@ import { identity } from 'lodash';
 import { Button, Spinner, Textarea } from '@cloudscape-design/components';
 import Message from '../../chatbot/components/Message';
 import { BaseConfig, DocumentData, MessageDataType, SessionMessage } from 'src/types';
-import { useAuth } from 'react-oidc-context';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { useParams } from 'react-router-dom';
@@ -13,8 +12,36 @@ import {
   setCurrentSessionId,
 } from 'src/app/slice/cs-workspace';
 import { v4 as uuidv4 } from 'uuid';
-import { OIDC_STORAGE, ReadyState } from 'src/utils/const';
+import { LLM_BOT_COMMON_MODEL_LIST, OIDC_STORAGE, ONLY_RAG_TOOL, ReadyState } from 'src/utils/const';
 import { getGroupName, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
+
+const defaultConfig = {
+  modelType: {
+    label: 'Bedrock',
+    value: 'Bedrock',
+  },
+  model: LLM_BOT_COMMON_MODEL_LIST[0].options[0].value,
+  temperature: '0.01',
+  maxToken: '1000',
+  maxRounds: '7',
+  topKKeyword: '5',
+  topKEmbedding: '5',
+  topKRerank: '10',
+  keywordScore: '0.4',
+  embeddingScore: '0.4',
+  additionalConfig: '',
+  apiEndpoint: '',
+  apiKeyArn: '',
+  guardrailIdentifier: '',
+  guardrailVersion: ''
+};
+
+const onlyRAGTool =
+  localStorage.getItem(ONLY_RAG_TOOL) == null ||
+    localStorage.getItem(ONLY_RAG_TOOL) == 'true'
+    ? true
+    : false
+;
 interface MessageType {
   messageId: string;
   type: 'ai' | 'human';
@@ -41,7 +68,49 @@ export const ChatMessage: React.FC = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
   const [isMessageEnd, setIsMessageEnd] = useState(false);
-  const [requestContent, setRequestContent] = useState<BaseConfig>({});
+  const chatbotOption = {
+    label: 'admin',
+    value: 'admin',
+  };
+  const [requestContent, setRequestContent] = useState<BaseConfig>({
+    query: "",
+    entry_type: 'common',
+    session_id: "",
+    user_id: "",
+    chatbot_config: {
+      max_rounds_in_memory: parseInt(defaultConfig.maxRounds),
+      group_name: 'Admin',
+      chatbot_id: chatbotOption.value,
+      chatbot_mode: 'agent',
+      use_history: true,
+      enable_trace: false,
+      use_websearch: true,
+      google_api_key: '',
+      default_llm_config: {
+        model_id: defaultConfig.model,
+        endpoint_name: '',
+        provider: defaultConfig.modelType.value,
+        base_url: '',
+        api_key_arn:  '',
+        model_kwargs: {
+          temperature: defaultConfig.temperature,
+          max_tokens: defaultConfig.maxToken,
+        },
+      },
+      default_retriever_config: {
+        private_knowledge: {
+          bm25_search_top_k: defaultConfig.topKKeyword,
+          bm25_search_score: defaultConfig.keywordScore,
+          vector_search_top_k: defaultConfig.topKEmbedding,
+          vector_search_score: defaultConfig.embeddingScore,
+          rerank_top_k: defaultConfig.topKRerank,
+        },
+      },
+      agent_config: {
+        only_use_rag_tool: onlyRAGTool,
+      },
+    },
+  });
   const [currentDocumentList, setCurrentDocumentList] = useState<
     DocumentData[]
   >([]);
@@ -255,7 +324,7 @@ export const ChatMessage: React.FC = () => {
     }
   };
 
-  const readyState = initialSSEConnection("/ccp-stream", requestContent, (data) => {
+  const readyState = initialSSEConnection("/stream", requestContent, (data) => {
     console.log('Received SSE message:', data);
   try {
     const message = JSON.parse(data);
