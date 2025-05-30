@@ -117,6 +117,16 @@ const UserMessage: React.FC = () => {
   const readyState = initialSSEConnection("/stream",requestContent, (data) => {
     console.log('Received SSE message:', data);
   try {
+    if (data.event === 'message') {
+      const innerMessage = JSON.parse(data.data);
+      if (innerMessage.message_type === 'MONITOR') {
+        // setCurrentMonitorMessage((prev) => {
+        //   return prev + (innerMessage?.message ?? '');
+        // });
+      } else {
+        // handleAIMessage(innerMessage);
+      }
+    }
     // const message = JSON.parse(data);
     // if (message.message_type === 'MONITOR') {
     //   setCurrentMonitorMessage((prev) => {

@@ -13,6 +13,7 @@ from shared.constant import StreamMessageType
 from .logger_utils import get_logger
 from pydantic import BaseModel, Field, model_validator
 from shared.utils.sse_utils import sse_manager
+from common_logic.common_utils.response_utils import send_message
 
 from ..exceptions import LambdaInvokeError
 import contextvars
@@ -59,7 +60,6 @@ class StateContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.clear_state()
-
 
 class LAMBDA_INVOKE_MODE(enum.Enum):
     LAMBDA = "lambda"
@@ -213,35 +213,26 @@ def send_trace(
     enable_trace: Union[bool, None] = None,
     response = None
 ) -> None:
-    """
-    Send trace information either to a WebSocket client, SSE response, or log it.
-    
-    Args:
-        trace_info: The trace information to send
-        current_stream_use: Whether to use streaming
-        connection_id: Connection ID (for WebSocket/SSE mode)
-        enable_trace: Whether to enable tracing
-        response: HTTP response object (for SSE mode)
-    """
+    """Send trace info to client."""
     if current_stream_use is None:
         current_stream_use = _current_stream_use
-
     if enable_trace is None:
         enable_trace = _enable_trace
-    if enable_trace:
-        if current_stream_use:
-            message = {
-                "message_type": StreamMessageType.MONITOR,
-                "message": trace_info,
-                "created_time": time.time(),
-            }
-            sse_manager.send_message(message)
-            if not is_running_local():
-                logger.info(trace_info)
-        else:
-            logger.info(trace_info)
-    else:
-        logger.info(trace_info)
+    if not current_stream_use or not enable_trace:
+        return
+
+    if connection_id is None:
+        connection_id = sse_manager.get_current_client_id()
+        if connection_id is None:
+            logger.warning("No client ID available for sending trace message")
+            return
+
+    message = {
+        "message_type": StreamMessageType.MONITOR,
+        "message": trace_info,
+        "created_time": time.time(),
+    }
+    send_message(message, connection_id)
 
 
 def node_monitor_wrapper(fn: Optional[Callable[..., Any]] = None, *, monitor_key: str = "current_monitor_infos") -> Callable[..., Any]:

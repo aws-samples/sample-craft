@@ -1,3 +1,4 @@
+"""Response utils"""
 import json
 import time
 import traceback
@@ -11,7 +12,7 @@ from shared.utils.sse_utils import sse_manager
 logger = get_logger("response_utils")
 
 class SSEClientError(Exception):
-    pass
+    """SSE client error"""
 
 def write_chat_history_to_ddb(
     query: str,
@@ -22,6 +23,7 @@ def write_chat_history_to_ddb(
     entry_type,
     additional_kwargs=None,
 ):
+    """Write chat history to DDB"""
     ddb_obj.add_user_message(
         f"user_{message_id}",
         custom_message_id,
@@ -40,6 +42,7 @@ def write_chat_history_to_ddb(
 
 
 def api_response(event_body: dict, response: dict):
+    """API response"""
     ddb_history_obj = event_body["ddb_history_obj"]
     answer = response["answer"]
     if isinstance(answer, types.GeneratorType):
@@ -65,12 +68,11 @@ def api_response(event_body: dict, response: dict):
         "message": {"role": "assistant", "content": answer},
         **response["extra_response"],
     }
-    
+
 def stream_response(event_body: dict, response: dict):
-    request_timestamp = event_body["request_timestamp"]
+    """Stream response"""
     entry_type = event_body["entry_type"]
     message_id = event_body["message_id"]
-    log_first_token_time = True
     custom_message_id = event_body["custom_message_id"]
     answer = response["answer"]
     if isinstance(answer, str):
@@ -80,22 +82,19 @@ def stream_response(event_body: dict, response: dict):
 
     ddb_history_obj = event_body["ddb_history_obj"]
     answer_str = ""
+    client_id = event_body.get("client_id")
 
     try:
-        sse_manager.send_message({
+        if client_id:
+            send_message({
                 "message_type": StreamMessageType.START,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
-            })
-        
-        for i, chunk in enumerate(answer or []):
+            }, client_id)
 
-            if i == 0 and log_first_token_time:
-                first_token_time = time.time()
-                logger.info(
-                    f"{custom_message_id} running time of first token whole {entry_type} entry: {first_token_time-request_timestamp}s"
-                )
-            sse_manager.send_message({
+        for i, chunk in enumerate(answer or []):
+            if client_id:
+                send_message({
                     "message_type": StreamMessageType.CHUNK,
                     "message_id": f"ai_{message_id}",
                     "custom_message_id": custom_message_id,
@@ -104,15 +103,8 @@ def stream_response(event_body: dict, response: dict):
                         "content": str(chunk),
                     },
                     "chunk_id": i,
-                })
+                }, client_id)
             answer_str += str(chunk)
-
-        if log_first_token_time:
-            logger.info(
-                f"{custom_message_id} running time of last token whole {entry_type} entry: {time.time()-request_timestamp}s"
-            )
-
-        logger.info(f"answer: {answer_str}")
 
         write_chat_history_to_ddb(
             query=event_body["query"],
@@ -125,7 +117,7 @@ def stream_response(event_body: dict, response: dict):
         )
 
         # Send context message if available
-        if response:
+        if response and client_id:
             context_msg = {
                 "message_type": StreamMessageType.CONTEXT,
                 "message_id": f"ai_{message_id}",
@@ -178,24 +170,25 @@ def stream_response(event_body: dict, response: dict):
                 if md_images:
                     context_msg["ddb_additional_kwargs"].setdefault(
                         "figure", []).extend(md_images)
-            sse_manager.send_message(context_msg)
-        sse_manager.send_message({
+            send_message(context_msg, client_id)
+            send_message({
                 "message_type": StreamMessageType.END,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
-            })
+            }, client_id)
     except SSEClientError:
         error = traceback.format_exc()
         logger.info(error)
     except Exception:
         error = traceback.format_exc()
         logger.info(error)
-        sse_manager.send_message({
+        if client_id:
+            send_message({
                 "message_type": StreamMessageType.ERROR,
                 "message_id": f"ai_{message_id}",
                 "custom_message_id": custom_message_id,
                 "message": {"content": error},
-            })
+            }, client_id)
     return answer_str
 
 def process_response(event_body, response):
@@ -203,5 +196,108 @@ def process_response(event_body, response):
     stream = event_body.get("stream", True)
     if stream:
         return stream_response(event_body, response)
+
+    return api_response(event_body, response)
+
+def send_message(message: dict, client_id: str = None):
+    """Send message to client."""
+    if client_id is None:
+        client_id = sse_manager.get_current_client_id()
+
+    # Format message for ServerSentEvent
+    if isinstance(message, dict):
+        if message.get("event") == "ping":
+            # For ping messages, send as is without additional formatting
+            formatted_message = message
+        elif "message_type" in message:
+            formatted_message = {
+                "event": "message",
+                "data": json.dumps(message)
+            }
+        else:
+            formatted_message = message
+    else:
+        formatted_message = {
+            "event": "message",
+            "data": json.dumps({"content": str(message)})
+        }
+
+    sse_manager.send_message(formatted_message, client_id)
+
+def handle_stream_response(event_body, response):
+    """Handle stream response."""
+    client_id = sse_manager.get_current_client_id()
+    if not client_id:
+        return api_response(event_body, response)
+
+    try:
+        for chunk in response:
+            if isinstance(chunk, str):
+                message = {
+                    "event": "message",
+                    "data": json.dumps({
+                        "message_type": "CHUNK",
+                        "message": {"content": chunk},
+                        "created_time": time.time()
+                    })
+                }
+                send_message(message, client_id)
+            elif isinstance(chunk, dict):
+                message = {
+                    "event": "message",
+                    "data": json.dumps({
+                        "message_type": "CHUNK",
+                        "message": chunk,
+                        "created_time": time.time()
+                    })
+                }
+                send_message(message, client_id)
+    except Exception as e:
+        error_message = {
+            "event": "error",
+            "data": json.dumps({
+                "error": str(e),
+                "created_time": time.time()
+            })
+        }
+        send_message(error_message, client_id)
+
+    return api_response(event_body, response)
+
+def handle_context_response(event_body, response):
+    """Handle context response."""
+    client_id = sse_manager.get_current_client_id()
+    if not client_id:
+        return api_response(event_body, response)
+
+    try:
+        context_msg = {
+            "event": "message",
+            "data": json.dumps({
+                "message_type": "CONTEXT",
+                "message": response.get("context", {}),
+                "created_time": time.time()
+            })
+        }
+        send_message(context_msg, client_id)
+
+        message = {
+            "event": "message",
+            "data": json.dumps({
+                "message_type": "CHUNK",
+                "message": {"content": response.get("response", "")},
+                "created_time": time.time()
+            })
+        }
+        send_message(message, client_id)
+    except Exception as e:
+        error_message = {
+            "event": "error",
+            "data": json.dumps({
+                "error": str(e),
+                "created_time": time.time()
+            })
+        }
+        send_message(error_message, client_id)
 
     return api_response(event_body, response)
