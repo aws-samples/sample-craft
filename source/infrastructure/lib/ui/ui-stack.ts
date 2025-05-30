@@ -86,12 +86,14 @@ exports.handler = async (event, context) => {
     const existingOrigins = Array.isArray(existingConfig.Origins.Items) 
       ? existingConfig.Origins.Items
       : [];
+
+    const millstr = Date.now();
     
     const newOrigins = [
       ...existingOrigins,
       // Add ALB origin
       {
-        Id: 'OriginForALB' + Date.now(),
+        Id: 'OriginForALB' + millstr,
         DomainName: albEndpoint,
         OriginPath: '',
         CustomOriginConfig: {
@@ -119,7 +121,7 @@ exports.handler = async (event, context) => {
     const newCacheBehaviors = [
       {
         PathPattern: '/stream*',
-        TargetOriginId: 'OriginForALB',
+        TargetOriginId: 'OriginForALB' + millstr,
         ViewerProtocolPolicy: 'https-only',
         AllowedMethods: {
           Quantity: 7,
