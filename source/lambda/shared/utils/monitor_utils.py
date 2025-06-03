@@ -67,6 +67,9 @@ def format_rag_data(retrieved_contexts: List[Document], qq_result: List[Document
     for item in retrieved_contexts:
         raw_source = item.metadata.get(source_field, "")
         source = _file_name_in_path(raw_source)
+        if "retrieval_score" not in item.metadata:
+            # Skip the extended chunks
+            continue
         score = item.metadata.get("retrieval_score", -1)
         rerank_score = item.metadata.get(rerank_score_field, None)
         if rerank_score is not None:

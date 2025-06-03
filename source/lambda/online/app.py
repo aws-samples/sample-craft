@@ -60,7 +60,32 @@ async def health_check():
 @app.post("/llm")
 @require_auth
 async def handle_llm_request(request: Request):
-    """Handle LLM request"""
+    """
+    Handle synchronous LLM requests for text generation and processing.
+
+    This endpoint processes LLM requests in a non-streaming fashion, suitable for
+    shorter interactions or when immediate complete responses are needed.
+
+    Parameters:
+        request (Request): The FastAPI request object containing:
+            - body: JSON payload with the query and configuration
+            - headers: Request headers including authentication
+
+    Request Body Schema:
+        {
+            "query": str,              # The input text/prompt for the LLM
+            "entry_type": str,         # Type of entry (default: "common")
+            "session_id": str,         # Optional session identifier
+            "user_id": str,           # Optional user identifier
+            "chatbot_config": dict    # Optional LLM configuration parameters
+        }
+
+    Returns:
+        dict: The LLM response containing generated text and metadata
+
+    Authentication:
+        Requires valid authentication token in request headers
+    """
     body = await request.body()
     event = {
         "body": body.decode(),
@@ -84,10 +109,48 @@ async def handle_stream_request(
     user_id: str = None,
     chatbot_config: str = None
 ):
-    """Handle stream request"""
+    """
+    Handle streaming LLM requests with Server-Sent Events (SSE) for real-time text generation.
+
+    This endpoint enables streaming responses from the LLM, sending tokens as they're
+    generated and maintaining a persistent connection with heartbeat messages.
+
+    Parameters:
+        request (Request): The FastAPI request object
+        query (str): The input text/prompt for the LLM
+        entry_type (str, optional): Type of entry processing (default: COMMON)
+        session_id (str, optional): Unique identifier for the chat session
+        user_id (str, optional): Identifier for the user making the request
+        chatbot_config (str, optional): JSON string containing LLM configuration:
+            {
+                "group_name": str,     # Group name for access control
+                "model_name": str,     # Specific LLM model to use
+                "temperature": float,  # LLM temperature setting
+                ... # Other model-specific parameters
+            }
+
+    Returns:
+        EventSourceResponse: SSE response stream containing:
+            - message events: {"message_type": "CHUNK", "message": {"content": str}}
+            - ping events: {"timestamp": float} (every HEARTBEAT_INTERVAL seconds)
+            - error events: {"error": str} (if an error occurs)
+
+    Events:
+        - "message": Contains generated text chunks or monitoring data
+        - "ping": Heartbeat messages to maintain connection
+        - "error": Error information if processing fails
+
+    Authentication:
+        Requires valid authentication token in request headers
+
+    Notes:
+        - Maintains connection with periodic heartbeats (every 3 seconds)
+        - Supports monitoring events for tracking generation progress
+        - Handles empty queries and various error conditions
+        - Implements CORS and other security headers
+    """
     client_id = sse_manager.connect()
     queue = sse_manager.get_client_queue(client_id)
-    
     try:
         if chatbot_config:
             chatbot_config = json.loads(chatbot_config)
