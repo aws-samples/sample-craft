@@ -327,13 +327,15 @@ export const ChatMessage: React.FC = () => {
   const readyState = initialSSEConnection("/stream", requestContent, (data) => {
     console.log('Received SSE message:', data);
   try {
-    const message = JSON.parse(data);
-    if (message.message_type === 'MONITOR') {
-      setCurrentMonitorMessage((prev) => {
-        return prev + (message?.message ?? '');
-      });
-    } else {
-      handleAIMessage(message);
+    if (data.event === 'message') {
+      const innerMessage = JSON.parse(data.data);
+      if (innerMessage.message_type === 'MONITOR') {
+        setCurrentMonitorMessage((prev) => {
+          return prev + (innerMessage?.message ?? '');
+        });
+      } else {
+        handleAIMessage(innerMessage);
+      }
     }
   } catch (error) {
     console.error('Error parsing SSE message:', error);
