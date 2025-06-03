@@ -22,7 +22,6 @@ const AppBody = () => {
 
 const App: React.FC = () => {
   const hasToken = hasPrefixKeyInLocalStorage(OIDC_PREFIX)
-  console.log('@@@@hasToken', hasToken)
   if(window.location.pathname !== ROUTES.Login){
   if (hasToken){
     if(isTokenExpired()){

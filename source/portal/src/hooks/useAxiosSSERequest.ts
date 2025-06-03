@@ -61,16 +61,23 @@ const useAxiosSSERequest = ({
       });
       eventSourceRef.current = es;
 
-      es.addEventListener(heartbeatEvent, () => {
-        lastPingRef.current = Date.now();
-        if (!isClosingRef.current) {
-          setStatus('success');
+      es.addEventListener('message', (event: MessageEvent) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === heartbeatEvent) {
+            console.log('Heartbeat received at:', new Date().toISOString());
+            lastPingRef.current = Date.now();
+            console.log('Updated lastPingRef to:', new Date(lastPingRef.current).toISOString());
+            if (!isClosingRef.current) {
+              setStatus('success');
+            }
+          } else {
+            onMessage?.(data);
+          }
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
         }
       });
-
-      es.onmessage = (event: MessageEvent) => {
-        onMessage?.(event.data);
-      }
 
       es.onerror = (err: Event) => {
         console.error('SSE error:', err);

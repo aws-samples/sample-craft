@@ -17,14 +17,17 @@ from sse_starlette.sse import EventSourceResponse
 
 from lambda_main.main import default_event_handler, lambda_handler
 from lambda_main.main_utils.online_entries import get_entry
-from shared.constant import EntryType
+from shared.constant import EntryType, StreamMessageType
 from shared.utils.logger_utils import get_logger
 from fastapi_mcp import FastApiMCP
 from authorize import require_auth
 
-import shared.utils.sse_utils as sse_utils
+from shared.utils.sse_utils import sse_manager
 
 HEARTBEAT_INTERVAL = 3
+QUEUE_FETCH_TIMEOUT = 0.001
+TIMEOUT_RETRY_INTERVAL = 0.001
+CLOSE_WAITING_TIME = 1
 
 logger = get_logger("app")
 nest_asyncio.apply()
@@ -33,7 +36,7 @@ nest_asyncio.apply()
 async def lifespan(app: FastAPI):
     """Lifespan for the application"""
     current_loop = asyncio.get_running_loop()
-    sse_utils.LOOP = current_loop
+    sse_manager.set_loop(current_loop)
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -146,8 +149,8 @@ async def handle_stream_request(
         - Handles empty queries and various error conditions
         - Implements CORS and other security headers
     """
-    client_id = sse_utils.sse_manager.connect()
-    queue = sse_utils.sse_manager.get_client_queue(client_id)
+    client_id = sse_manager.connect()
+    queue = sse_manager.get_client_queue(client_id)
     try:
         if chatbot_config:
             chatbot_config = json.loads(chatbot_config)
@@ -164,32 +167,31 @@ async def handle_stream_request(
             "stream": True
         }
         entry_executor = get_entry(entry_type.lower())
+        
         async def event_generator():
             try:
                 event_body = default_event_handler(event_body_orginal, {})
+                event_body["client_id"] = client_id  # Add client_id to event_body
                 message_queue = asyncio.Queue()
 
                 class StreamingCallback:
                     """Streaming callback"""
-                    def __init__(self):
+                    def __init__(self, client_id):
                         self.collected_chunks = []
+                        self.client_id = client_id
 
                     def on_llm_new_token(self, token, **kwargs):
                         """send chunk to client"""
-                        logger.info(f"New token generated: {token}")
                         message = {
-                            "event": "message",
-                            "data": json.dumps({
-                                "message_type": "CHUNK",
-                                "message": {"content": token},
-                                "created_time": time.time()
-                            })
+                            "message_type": "CHUNK",
+                            "message": {"content": token},
+                            "created_time": time.time()
                         }
-                        asyncio.create_task(message_queue.put(message))
+                        sse_manager.send_message(message, self.client_id)
                         self.collected_chunks.append(token)
                         return token
 
-                callback = StreamingCallback()
+                callback = StreamingCallback(client_id)
                 event_body["stream"] = True
                 event_body["streaming_callback"] = callback
 
@@ -198,38 +200,54 @@ async def handle_stream_request(
                         await asyncio.sleep(HEARTBEAT_INTERVAL)
                         heartbeat_message = {
                             "event": "ping",
-                            "data": json.dumps({"timestamp": time.time()})
+                            "data": str(time.time())
                         }
-                        await queue.put(heartbeat_message)
+                        try:
+                            sse_manager.send_message(heartbeat_message, client_id)
+                        except Exception as e:
+                            logger.error(f"Failed to send heartbeat message to client {client_id}: {str(e)}")
+                            logger.error(traceback.format_exc())
 
                 heartbeat_task = asyncio.create_task(send_heartbeat())
                 try:
                     if event_body_orginal["query"] == "":
-                        result = "empty query"
-                    else:
-                        result = entry_executor(event_body)
-                    if isinstance(result, dict) and "answer" in result:
-                        answer = result["answer"]
-                        if hasattr(answer, '__iter__') and not isinstance(answer, str):
-                            for item in answer:
-                                if isinstance(item, dict) and item.get("message_type") == "MONITOR":
-                                    message = {
-                                        "event": "message",
-                                        "data": json.dumps(item)
-                                    }
-                                    await message_queue.put(message)
-                                    yield message
-
-                    while True:
-                        try:
-                            message = await asyncio.wait_for(message_queue.get(), timeout=0.1)
-                            yield message
-                        except asyncio.TimeoutError:
+                        while True:
                             try:
-                                message = await asyncio.wait_for(queue.get(), timeout=0.1)
+                                message = await asyncio.wait_for(queue.get(), timeout=QUEUE_FETCH_TIMEOUT)
                                 yield message
                             except asyncio.TimeoutError:
+                                await asyncio.sleep(TIMEOUT_RETRY_INTERVAL)
                                 continue
+                    else:
+                        process_task = asyncio.create_task(
+                            asyncio.to_thread(entry_executor, event_body)
+                        )
+                        
+                        while True:
+                            try:
+                                message_str = await asyncio.wait_for(queue.get(), timeout=QUEUE_FETCH_TIMEOUT)
+                                yield message_str
+                            except asyncio.TimeoutError:
+                                if process_task.done():
+                                    try:
+                                        process_task.result()
+                                        await asyncio.sleep(TIMEOUT_RETRY_INTERVAL)
+                                    except Exception as e:
+                                        yield {               
+                                            "data": json.dumps({
+                                                "event": "message",
+                                                "data": json.dumps({
+                                                    "message_type": "system_error",
+                                                    "message": {"content": str(e)},
+                                                    "created_time": time.time()
+                                                })
+                                            })
+                                        }
+                                        break
+                                continue
+                except Exception as e:
+                    logger.error(f"Error in entry_executor: {str(e)}")
+                    raise e
                 finally:
                     heartbeat_task.cancel()
                     try:
@@ -240,9 +258,18 @@ async def handle_stream_request(
                 error_info = '{}: {}'.format(type(e).__name__, e)
                 logger.error("%s\nAn error occurred: %s", traceback.format_exc(), error_info)
                 yield {
-                    "event": "error",
-                    "data": json.dumps({"error": error_info})
+                    "data": json.dumps({
+                        "event": "message",
+                        "data": json.dumps({
+                            "message_type": "system_err",
+                            "message": {"content": str(e)},
+                            "created_time": time.time()
+                        })
+                    })
                 }
+            finally:
+                # Clean up the client connection when the generator is done
+                sse_manager.disconnect(client_id)
 
         return EventSourceResponse(
             event_generator(),
@@ -264,6 +291,8 @@ async def handle_stream_request(
     except Exception as e:
         error_info = f'{type(e).__name__}: {e}'
         logger.error("%s\nAn error occurred: %s", traceback.format_exc(), error_info)
+        # Clean up the client connection in case of error
+        sse_manager.disconnect(client_id)
         return {"error": error_info}
 
 mcp = FastApiMCP(
