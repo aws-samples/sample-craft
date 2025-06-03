@@ -164,22 +164,21 @@ async def handle_stream_request(
                             try:
                                 message_str = await asyncio.wait_for(queue.get(), timeout=QUEUE_FETCH_TIMEOUT)
                                 yield message_str
-                                
-                                # message = json.loads(message_str)
-                                # message_data = json.loads(message['data'])
-                                # if message["event"] == "message" and message_data["message_type"] == StreamMessageType.END:
-                                #     await asyncio.sleep(CLOSE_WAITING_TIME)
-                                #     return
                             except asyncio.TimeoutError:
                                 if process_task.done():
                                     try:
                                         process_task.result()
                                         await asyncio.sleep(TIMEOUT_RETRY_INTERVAL)
                                     except Exception as e:
-                                        logger.error(f"Error in processing: {str(e)}")
-                                        yield {
-                                            "event": "error",
-                                            "data": json.dumps({"error": str(e)})
+                                        yield {               
+                                            "data": json.dumps({
+                                                "event": "message",
+                                                "data": json.dumps({
+                                                    "message_type": "system_error",
+                                                    "message": {"content": str(e)},
+                                                    "created_time": time.time()
+                                                })
+                                            })
                                         }
                                         break
                                 continue
@@ -196,8 +195,14 @@ async def handle_stream_request(
                 error_info = '{}: {}'.format(type(e).__name__, e)
                 logger.error("%s\nAn error occurred: %s", traceback.format_exc(), error_info)
                 yield {
-                    "event": "error",
-                    "data": json.dumps({"error": error_info})
+                    "data": json.dumps({
+                        "event": "message",
+                        "data": json.dumps({
+                            "message_type": "system_err",
+                            "message": {"content": str(e)},
+                            "created_time": time.time()
+                        })
+                    })
                 }
             finally:
                 # Clean up the client connection when the generator is done
