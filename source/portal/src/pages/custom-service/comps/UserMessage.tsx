@@ -1,28 +1,34 @@
-import React, { useEffect, useState, useRef } from 'react';
-// import useWebSocket, { ReadyState } from 'react-use-websocket';
+import React, { useEffect, useState, useRef, useContext } from 'react';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { setLatestUserMessage } from 'src/app/slice/cs-workspace';
-// import ConfigContext from 'src/context/config-context';
+import ConfigContext from 'src/context/config-context';
 import useAxiosWorkspaceRequest from 'src/hooks/useAxiosWorkspaceRequest';
 import { BaseConfig, ChatMessageResponse, ChatMessageType } from 'src/types';
-import { formatTime, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
+import { formatTime, getCredentials, isTokenExpired } from 'src/utils/utils';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
 import { useTranslation } from 'react-i18next';
-import { OIDC_STORAGE, ReadyState } from 'src/utils/const';
+import { OIDC_STORAGE } from 'src/utils/const';
 
 const UserMessage: React.FC = () => {
   const { t } = useTranslation();
-  // const config = useContext(ConfigContext);
+  const config = useContext(ConfigContext);
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
   const dispatch = useAppDispatch();
   const request = useAxiosWorkspaceRequest();
   const [message, setMessage] = useState('');
   const [messageList, setMessageList] = useState<ChatMessageType[]>([]);
-  const [requestContent, setRequestContent] = useState<BaseConfig>({});
-
+  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
+  const { lastMessage, sendMessage, readyState } = useWebSocket(
+    `${config?.workspaceWebsocket}?idToken=${getCredentials().idToken}&user_id=${oidc.username}&session_id=${csWorkspaceState.currentSessionId}&role=agent&poolId=${config?.oidcPoolId}&clientId=${config?.oidcClientId}`,
+    {
+      onOpen: () => console.log('opened'),
+      shouldReconnect: () => true,
+    },
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSending, setIsSending] = useState(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -30,7 +36,6 @@ const UserMessage: React.FC = () => {
   const [lastUserMessageId, setLastUserMessageId] = useState<string | null>(
     null,
   );
-  const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
   if(isTokenExpired()){
     window.location.href = '/login'
     return null
@@ -85,7 +90,7 @@ const UserMessage: React.FC = () => {
     if (!message.trim()) return;
 
     setIsSending(true);
-    const content = {
+    const sendMessageObj = {
       query: message,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
@@ -94,8 +99,7 @@ const UserMessage: React.FC = () => {
     };
 
     try {
-      setRequestContent(content);
-      // sendMessage(JSON.stringify(sendMessageObj));
+      sendMessage(JSON.stringify(sendMessageObj));
       setMessageList((prev) => [
         ...prev,
         {
@@ -114,34 +118,6 @@ const UserMessage: React.FC = () => {
     }
   };
 
-  const readyState = initialSSEConnection("/stream",requestContent, (data) => {
-    console.log('Received SSE message:', data);
-  try {
-    if (data.event === 'message') {
-      const innerMessage = JSON.parse(data.data);
-      if (innerMessage.message_type === 'MONITOR') {
-        // setCurrentMonitorMessage((prev) => {
-        //   return prev + (innerMessage?.message ?? '');
-        // });
-      } else {
-        // handleAIMessage(innerMessage);
-      }
-    }
-    // const message = JSON.parse(data);
-    // if (message.message_type === 'MONITOR') {
-    //   setCurrentMonitorMessage((prev) => {
-    //     return prev + (message?.message ?? '');
-    //   });
-    // } else {
-    //   handleAIMessage(message);
-    // }
-  } catch (error) {
-    console.error('Error parsing SSE message:', error);
-  }
-}, (err) =>{
-  console.error('SSE failed', err);
-})
-
   useEffect(() => {
     if (csWorkspaceState.autoSendMessage) {
       setIsSending(true);
@@ -154,7 +130,7 @@ const UserMessage: React.FC = () => {
       };
 
       try {
-        setRequestContent(sendMessageObj);
+        sendMessage(JSON.stringify(sendMessageObj));
         setMessageList((prev) => [
           ...prev,
           {
@@ -173,11 +149,11 @@ const UserMessage: React.FC = () => {
     }
   }, [csWorkspaceState.autoSendMessage]);
 
-  // useEffect(() => {
-  //   if (lastMessage) {
-  //     console.log(lastMessage);
-  //   }
-  // }, [lastMessage]);
+  useEffect(() => {
+    if (lastMessage) {
+      console.log(lastMessage);
+    }
+  }, [lastMessage]);
 
   // 初始化 lastUserMessageId
   useEffect(() => {
@@ -237,7 +213,7 @@ const UserMessage: React.FC = () => {
             handleSend();
           }}
           className="send-btn"
-          disabled={readyState !== ReadyState.SUCCESS}
+          disabled={readyState !== ReadyState.OPEN}
         >
           <span className="icon">💬</span>
           {t('button.send')}
