@@ -54,7 +54,7 @@ const UserChatList: React.FC<UserChatListProps> = ({ leftTopHeight }) => {
 
     const currentChat = newChatList.find((chat) => chat.sessionId === id);
 
-    dispatch(setCurrentUser(currentChat ?? null));
+    // dispatch(setCurrentUser(currentChat ?? null));
 
     setPrevChatList(chatList);
     setChatList(newChatList);
