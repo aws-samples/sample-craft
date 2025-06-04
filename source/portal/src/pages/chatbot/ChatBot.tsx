@@ -55,11 +55,12 @@ import {
   GUARDRAIL_VERSION,
   MODE,
   ReadyState,
+  SYS_ERROR_PREFIX,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
 import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
 import { getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
-// import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
+import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 interface MessageType {
   messageId: string;
@@ -115,6 +116,27 @@ const isValidArn = (arn: string): boolean => {
 const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const { historySessionId } = props;
   const [loadingChatBots, setLoadingChatBots] = useState(false);
+
+  const defaultConfig = {
+    modelType: {
+      label: 'Bedrock',
+      value: 'Bedrock',
+    },
+    model: LLM_BOT_COMMON_MODEL_LIST[0].options[0].value,
+    temperature: '0.01',
+    maxToken: '1000',
+    maxRounds: '7',
+    topKKeyword: '5',
+    topKEmbedding: '5',
+    topKRerank: '10',
+    keywordScore: '0.4',
+    embeddingScore: '0.4',
+    additionalConfig: '',
+    apiEndpoint: '',
+    apiKeyArn: '',
+    guardrailIdentifier: '',
+    guardrailVersion: ''
+  };
 
   const tmpModelType = localStorage.getItem(MODEL_TYPE);
   const localModelType = tmpModelType ? JSON.parse(tmpModelType) : null;
@@ -264,13 +286,16 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [apiKeyArnError, setApiKeyArnError] = useState('');
   const [lastMessage, _] = useState<MessageDataType | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const [lastTriggerTime, setLastTriggerTime] = useState<number>(0);
+
+  // const [readyState, setReadyState] = useState<'in-progress' | 'success' | 'error'>('in-progress');
 
   const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
     { label: string; value: string }[]
   >([]);
 
   const fetchAPIData = useAxiosRequest();
-  const [requestContent, setRequestContent] = useState<BaseConfig>({
+  const [requestContent, __] = useState<BaseConfig>({
     query: "",
     entry_type: 'common',
     session_id: "",
@@ -309,6 +334,37 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       },
     },
   });
+
+  const [messageToSend, setMessageToSend] = useState<BaseConfig | null>(null);
+
+  const readyStateHeartBeat = useAxiosSSERequest(initialSSEConnection("/stream", requestContent, () => {
+    console.log('Initial SSE Connection successed:');
+  }, (err) => {
+    console.error('Initial SSE Connection failed', err);
+  }));
+
+  useAxiosSSERequest(
+    messageToSend ? initialSSEConnection("/stream", messageToSend, (data) => {
+      if (data.event === 'message') {
+        const innerMessage = JSON.parse(data.data);
+        if (innerMessage.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (innerMessage?.message ?? '');
+          });
+        } else {
+          handleAIMessage(innerMessage);
+        }
+      }
+    }, (err) => {
+      console.error('SSE Request failed', err);
+    }) : {
+      path: '/stream',
+      params: '',
+      onMessage: () => {},
+      onError: () => {}
+    }
+  );
+
   const startNewChat = () => {
     [
       CURRENT_CHAT_BOT,
@@ -336,7 +392,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     setEmbeddingScore(defaultConfig.embeddingScore);
     setUserMessage('');
     setAdditionalConfig('');
-    // setModelOption(optionList?.[0]?.value ?? '')
     setSessionId(uuidv4());
     getWorkspaceList();
     setMessages([
@@ -368,7 +423,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       });
       setChatbotList(getChatbots);
 
-      // First try to get chatbotId from history if it exists
       const historyChatbotId = localStorage.getItem(HISTORY_CHATBOT_ID);
       const localChatBot = localStorage.getItem(CURRENT_CHAT_BOT);
 
@@ -376,16 +430,13 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         historyChatbotId &&
         getChatbots.some((bot) => bot.value === historyChatbotId)
       ) {
-        // If history chatbotId exists and is valid, use it
         setChatbotOption({
           label: historyChatbotId,
           value: historyChatbotId,
         });
       } else if (localChatBot !== null) {
-        // Otherwise fall back to local storage
         setChatbotOption(JSON.parse(localChatBot));
       } else {
-        // Finally fall back to first chatbot
         setChatbotOption(getChatbots[0]);
       }
     } catch (error) {
@@ -469,11 +520,17 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         setApiEndpoint(localApiEndpoint ?? tempModels[0].value);
       }
     };
+
     fetchEndpoints();
     initializeChatbot();
     setLoadingChatBots(false);
     setModelList(LLM_BOT_COMMON_MODEL_LIST);
 
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
   }, []);
 
   useEffect(()=>{
@@ -596,7 +653,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   }, [guardrailVersion]);
 
   const handleAIMessage = (message: MessageDataType) => {
-    // console.info('handleAIMessage:', message);
+    console.info('handleAIMessage:', message);
     if (message.message_type === 'START') {
       console.info('message started');
     } else if (message.message_type === 'CHUNK') {
@@ -621,7 +678,15 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           }
         });
       }
-    } else if (message.message_type === 'END') {
+    } else if (message.message_type === 'ERROR') {
+      setCurrentAIMessage((prev) => {
+        return SYS_ERROR_PREFIX + prev + (message?.message?.content ?? '');
+      });
+      setAiSpeaking(false);
+      setIsMessageEnd(true);
+    }
+    
+    else if (message.message_type === 'END' ) {
       console.info('message ended');
       setCurrentAIMessageId(message.message_id);
       setAiSpeaking(false);
@@ -900,9 +965,9 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       };
     }
 
-    setRequestContent(message);
+    message._triggerId = Date.now() + Math.random();
+    setMessageToSend(message);
 
-    // Only add to messages if it's a new message (not regeneration)
     if (!customQuery) {
       setMessages((prev) => {
         return [
@@ -921,28 +986,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
       setSelectedFiles([]);
     }
   };
-
-  const readyState = initialSSEConnection("/stream", requestContent, (data) => {
-        console.log('Received SSE message:', data);
-      try {
-        if (data.event === 'message') {
-          const innerMessage = JSON.parse(data.data);
-          if (innerMessage.message_type === 'MONITOR') {
-            setCurrentMonitorMessage((prev) => {
-              return prev + (innerMessage?.message ?? '');
-            });
-          } else {
-            handleAIMessage(innerMessage);
-          }
-        }
-      } catch (error) {
-        console.error('Error parsing SSE message:', error);
-      }
-  }, (err) =>{
-    console.error('SSE failed', err);
-    if (!aiSpeaking) {
-    }
-  })
 
   const useLocalStorageValue = (key: string) => {
     const [value, setValue] = useState(() => localStorage.getItem(key));
@@ -1013,15 +1056,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [feedbackGiven, setFeedbackGiven] = useState<{
     [key: string]: 'thumb_up' | 'thumb_down' | null;
   }>({});
-
-  // const getGroupName = () => {
-  //   if (oidc.provider === 'cognito') {
-  //     const credentials = getCredentials();
-  //     const claim = decodeJwt(credentials.idToken);
-  //     return claim['cognito:groups'];
-  //   }
-  //   return ['Admin'];
-  // };
 
   const handleThumbUpClick = async (index: number) => {
     const currentFeedback = feedbackGiven[index];
@@ -1124,7 +1158,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             multiple
           />
           <Button
-            disabled={readyState!== 'success'}
+            disabled={readyStateHeartBeat!== 'success'}
             onClick={() => handleClickSendMessage()}
             ariaLabel={t('button.send')}
           >
@@ -1199,7 +1233,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                   <SpaceBetween size="xs" direction="horizontal">
                     <Button
                       variant="primary"
-                      disabled={aiSpeaking || readyState !== 'success'}
+                      disabled={aiSpeaking || readyStateHeartBeat !== 'success'}
                       onClick={() => {
                         startNewChat();
                       }}
@@ -1623,90 +1657,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                           </Grid>
                         </FormField>
                       </Grid>
-
-                      {/* <FormField
-                        label={t('topKRetrievals')}
-                        stretch={true}
-                        description={t('topKRetrievalsDesc')}
-                        errorText={t(topKRetrievalsError)}
-                      >
-                        <Input
-                          type="number"
-                          value={topKRetrievals}
-                          onChange={({ detail }) => {
-                            if (
-                              parseInt(detail.value) < 0 ||
-                              parseInt(detail.value) > 100
-                            ) {
-                              return;
-                            }
-                            setTopKRetrievalsError('');
-                            setTopKRetrievals(detail.value);
-                          }}
-                        />
-                      </FormField> */}
-                      {/* <FormField
-                        label={t('score')}
-                        stretch={true}
-                        description={t('scoreDesc')}
-                        errorText={t(scoreError)}
-                      >
-                        <Input
-                          type="number"
-                          step={0.01}
-                          value={score}
-                          onChange={({ detail }) => {
-                            if (
-                              parseFloat(detail.value) < 0 ||
-                              parseFloat(detail.value) > 1
-                            ) {
-                              return;
-                            }
-                            setScoreError('');
-                            setScore(detail.value);
-                          }}
-                        />
-                      </FormField>
-                    </Grid> */}
                       <Grid gridDefinition={[{ colspan: 6 }, { colspan: 6 }]}>
-                        {/* <FormField
-                        label={t('topKKeyword')}
-                        stretch={true}
-                        description={t('topKKeywordDesc')}
-                        errorText={t(topKKeywordError)}
-                      >
-                        <Input
-                          type="number"
-                          value={topKKeyword}
-                          onChange={({ detail }) => {
-                            if (parseInt(detail.value) < 0 || parseInt(detail.value) > 100) {
-                              return
-                            }
-                            setTopKKeywordError('');
-                            setTopKKeyword(detail.value);
-                          }}
-                        />
-                      </FormField>
-                      
-                      <FormField
-                        label={t('topKEmbedding')}
-                        stretch={true}
-                        description={t('topKEmbeddingDesc')}
-                        errorText={t(topKEmbeddingError)}
-                      >
-                        <Input
-                          type="number"
-                          value={topKEmbedding}
-                          onChange={({ detail }) => {
-                            if (parseInt(detail.value) < 0 || parseInt(detail.value) > 100) {
-                              return
-                            }
-                            setTopKEmbeddingError('');
-                            setTopKEmbedding(detail.value);
-                          }}
-                        />
-                      </FormField> */}
-
                         <FormField
                           label={t('topKRerank')}
                           stretch={true}
@@ -1837,6 +1788,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                         message={{
                           data: currentAIMessage,
                           monitoring: currentMonitorMessage,
+                          // isError: isError,
                         }}
                       />
                       {isMessageEnd && (
@@ -1982,8 +1934,8 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                       </div>
                       <div className="flex align-center gap-10">
                         <Box variant="p">{t('server')}: </Box>
-                        <StatusIndicator type={readyState || "in-progress"}>
-                          {t(readyState == ReadyState.CONNECTING ? 'connecting': (readyState || 'connecting'))}
+                        <StatusIndicator type={readyStateHeartBeat || "in-progress"}>
+                          {t(readyStateHeartBeat == ReadyState.CONNECTING ? 'connecting': (readyStateHeartBeat || 'connecting'))}
                         </StatusIndicator>
                       </div>
                     </div>

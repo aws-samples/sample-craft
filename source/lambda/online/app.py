@@ -205,7 +205,6 @@ async def handle_stream_request(
                         try:
                             sse_manager.send_message(heartbeat_message, client_id)
                         except Exception as e:
-                            logger.error(f"Failed to send heartbeat message to client {client_id}: {str(e)}")
                             logger.error(traceback.format_exc())
 
                 heartbeat_task = asyncio.create_task(send_heartbeat())
@@ -233,13 +232,33 @@ async def handle_stream_request(
                                         process_task.result()
                                         await asyncio.sleep(TIMEOUT_RETRY_INTERVAL)
                                     except Exception as e:
+                                        yield { 
+                                            "data": json.dumps({
+                                                "event": "message",
+                                                "data": json.dumps({
+                                                    "message_type": StreamMessageType.START,
+                                                    "message_id": f"ai_{event_body['message_id']}",
+                                                    "custom_message_id": event_body["custom_message_id"],
+                                                })
+                                            })
+                                        }
                                         yield {               
                                             "data": json.dumps({
                                                 "event": "message",
                                                 "data": json.dumps({
-                                                    "message_type": "system_error",
+                                                    "message_type": StreamMessageType.ERROR,
                                                     "message": {"content": str(e)},
                                                     "created_time": time.time()
+                                                })
+                                            })
+                                        }
+                                        yield { 
+                                            "data": json.dumps({
+                                                "event": "message",
+                                                "data": json.dumps({
+                                                    "message_type": StreamMessageType.END,
+                                                    "message_id": f"ai_{event_body['message_id']}",
+                                                    "custom_message_id": event_body['custom_message_id'],
                                                 })
                                             })
                                         }
@@ -261,7 +280,7 @@ async def handle_stream_request(
                     "data": json.dumps({
                         "event": "message",
                         "data": json.dumps({
-                            "message_type": "system_err",
+                            "message_type": StreamMessageType.ERROR,
                             "message": {"content": str(e)},
                             "created_time": time.time()
                         })
