@@ -457,6 +457,7 @@ export const PROVIDER = "provider"
 export const CLIENT_ID = "client_id"
 export const REFRESH_TOKEN = "refresh_token"
 export const AUTO_LOGOUT_TIME = 24 * 60 * 60 * 1000
+export const SYS_ERROR_PREFIX = "System error:"
 
 export const ROUTES = {
   Login: '/login',

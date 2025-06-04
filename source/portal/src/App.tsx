@@ -22,18 +22,16 @@ const AppBody = () => {
 
 const App: React.FC = () => {
   const hasToken = hasPrefixKeyInLocalStorage(OIDC_PREFIX)
-  if(window.location.pathname !== ROUTES.Login){
+  if(![ROUTES.Login, ROUTES.ChangePWD, ROUTES.FindPWD, ROUTES.Register].includes(window.location.pathname)){
   if (hasToken){
     if(isTokenExpired()){
       window.location.href=ROUTES.Login;
       return null;
     }
-  } else {
-    if(![ROUTES.Login, ROUTES.ChangePWD, ROUTES.FindPWD, ROUTES.Register].includes(window.location.pathname)){
+  } else { 
       window.location.href=ROUTES.Login;
       return null;
     }
-  }
   }
   return (
     <>

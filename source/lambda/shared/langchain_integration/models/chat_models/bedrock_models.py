@@ -54,7 +54,7 @@ class ChatBedrockConverse(_ChatBedrockConverse):
         
         ):
         if not self.support_prompt_cache:
-            return 
+            return system,bedrock_messages,params
         system = copy.deepcopy(system)
         bedrock_messages = copy.deepcopy(bedrock_messages)
         params = copy.deepcopy(params)

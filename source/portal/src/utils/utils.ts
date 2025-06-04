@@ -6,8 +6,8 @@ import { Config } from 'src/context/config-context';
 import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 import { AlertType, BaseConfig } from 'src/types';
 import { decodeJwt } from 'jose';
-
 export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
+
 
 export const alertMsg = (alertTxt: string, alertType: AlertType = 'error') => {
   const patchEvent = new CustomEvent('showAlertMsg', {
@@ -122,12 +122,13 @@ export const initialSSEConnection = (
   onMessage: (data: any) => void,
   onError: (err: any) => void
 ) => {
-  return useAxiosSSERequest({
+  const params = buildUrlParams(requestContent);
+  return {
     path,
-    params: buildUrlParams(requestContent),
+    params,
     onMessage,
-    onError,
-  });
+    onError
+  };
 }
 
 export const genHeaderOidcInfo =(config: Config | null)=>{

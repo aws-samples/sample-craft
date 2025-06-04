@@ -3,6 +3,7 @@ import {
   ExpandableSection,
   Icon,
   Popover,
+  StatusIndicator,
 } from '@cloudscape-design/components';
 import React, { useState } from 'react';
 import Avatar from 'react-avatar';
@@ -19,13 +20,14 @@ import {
   setActiveDocumentId,
   // setAutoSendMessage,
 } from 'src/app/slice/cs-workspace';
-import { ROUTES } from 'src/utils/const';
+import { ROUTES, SYS_ERROR_PREFIX } from 'src/utils/const';
 
 interface MessageProps {
   type: 'ai' | 'human';
   message: {
     data: string;
     monitoring: string;
+    // isError?: boolean;
   };
   showTrace?: boolean;
   aiSpeaking?: boolean;
@@ -73,6 +75,8 @@ const Message: React.FC<MessageProps> = ({
     });
   };
 
+  const msgContent = message.data.replace(/~/g, '\\~')
+
   return (
     <>
       {type === 'ai' && (
@@ -85,8 +89,11 @@ const Message: React.FC<MessageProps> = ({
               onMouseLeave={() => setIsHovered(false)}
             >
               <div className="message">
+                {msgContent.startsWith(SYS_ERROR_PREFIX) && <StatusIndicator type="info">
+                  <span style={{fontWeight: 'bold'}}>SYSTEM_ERROR</span>
+                </StatusIndicator>}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {message.data.replace(/~/g, '\\~')}
+                  {`${msgContent.replace(SYS_ERROR_PREFIX, '')}`}
                 </ReactMarkdown>
                 {aiSpeaking && (
                   <div className="mt-5">

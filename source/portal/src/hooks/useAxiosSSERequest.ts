@@ -84,6 +84,8 @@ const useAxiosSSERequest = ({
         const now = Date.now();
         if (now - lastPingRef.current > heartbeatIntervalMs && !isClosingRef.current) {
           setStatus('error');
+          // isTerminatedRef.current = true;
+          // es.close();
         }
         onError?.(err);
       }
