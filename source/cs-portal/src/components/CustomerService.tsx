@@ -62,7 +62,7 @@ const CustomerService: FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { lastMessage, sendMessage, readyState } = useWebSocket(
-    `${config?.workspaceWebsocket}?idToken=${auth.user?.id_token}&user_id=${auth.user?.profile?.sub}&session_id=${sessionId}&role=user`,
+    `${config?.workspaceWebsocket}?idToken=${auth.user?.id_token}&user_id=${auth.user?.profile?.sub}&session_id=${sessionId}&role=user&poolId=${config?.oidcPoolId}&clientId=${config?.oidcClientId}`,
     {
       onOpen: () => console.log("opened"),
       shouldReconnect: () => true,
