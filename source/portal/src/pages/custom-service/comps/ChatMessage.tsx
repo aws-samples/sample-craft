@@ -14,6 +14,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { LLM_BOT_COMMON_MODEL_LIST, OIDC_STORAGE, ONLY_RAG_TOOL, ReadyState } from 'src/utils/const';
 import { getGroupName, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
+import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
 const defaultConfig = {
   modelType: {
@@ -324,25 +325,25 @@ export const ChatMessage: React.FC = () => {
     }
   };
 
-  const readyState = initialSSEConnection("/stream", requestContent, (data) => {
+  const readyState = useAxiosSSERequest(initialSSEConnection("/stream", requestContent, (data) => {
     console.log('Received SSE message:', data);
-  try {
-    if (data.event === 'message') {
-      const innerMessage = JSON.parse(data.data);
-      if (innerMessage.message_type === 'MONITOR') {
-        setCurrentMonitorMessage((prev) => {
-          return prev + (innerMessage?.message ?? '');
-        });
-      } else {
-        handleAIMessage(innerMessage);
+    try {
+      if (data.event === 'message') {
+        const innerMessage = JSON.parse(data.data);
+        if (innerMessage.message_type === 'MONITOR') {
+          setCurrentMonitorMessage((prev) => {
+            return prev + (innerMessage?.message ?? '');
+          });
+        } else {
+          handleAIMessage(innerMessage);
+        }
       }
+    } catch (error) {
+      console.error('Error parsing SSE message:', error);
     }
-  } catch (error) {
-    console.error('Error parsing SSE message:', error);
-  }
-}, (err) =>{
-  console.error('SSE failed', err);
-})
+  }, (err) => {
+    console.error('SSE failed', err);
+  }));
 
   // useEffect(() => {
   //   if (lastMessage !== null) {
