@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { setLatestUserMessage } from 'src/app/slice/cs-workspace';
 import ConfigContext from 'src/context/config-context';
 import useAxiosWorkspaceRequest from 'src/hooks/useAxiosWorkspaceRequest';
-import { BaseConfig, ChatMessageResponse, ChatMessageType } from 'src/types';
+import { ChatMessageResponse, ChatMessageType } from 'src/types';
 import { formatTime, getCredentials, isTokenExpired } from 'src/utils/utils';
 import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';

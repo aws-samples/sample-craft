@@ -76,27 +76,6 @@ interface ChatBotProps {
   historySessionId?: string;
 }
 
-const defaultConfig = {
-  modelType: {
-    label: 'Bedrock',
-    value: 'Bedrock',
-  },
-  model: LLM_BOT_COMMON_MODEL_LIST[0].options[0].value,
-  temperature: '0.01',
-  maxToken: '1000',
-  maxRounds: '7',
-  topKKeyword: '5',
-  topKEmbedding: '5',
-  topKRerank: '10',
-  keywordScore: '0.4',
-  embeddingScore: '0.4',
-  additionalConfig: '',
-  apiEndpoint: '',
-  apiKeyArn: '',
-  guardrailIdentifier: '',
-  guardrailVersion: ''
-};
-
 const isValidUrl = (url: string): boolean => {
   try {
     new URL(url);
@@ -286,7 +265,6 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [apiKeyArnError, setApiKeyArnError] = useState('');
   const [lastMessage, _] = useState<MessageDataType | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-  const [lastTriggerTime, setLastTriggerTime] = useState<number>(0);
 
   // const [readyState, setReadyState] = useState<'in-progress' | 'success' | 'error'>('in-progress');
 

@@ -3,7 +3,6 @@ import { jwtDecode } from "jwt-decode";
 import { EN_LANG, OIDC_PREFIX, OIDC_PROVIDER, OIDC_STORAGE, ZH_LANG } from './const';
 import { Dispatch, SetStateAction } from 'react';
 import { Config } from 'src/context/config-context';
-import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 import { AlertType, BaseConfig } from 'src/types';
 import { decodeJwt } from 'jose';
 export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
