@@ -48,6 +48,7 @@
     "remark-html": "^16.0.1",
     "sass": "^1.74.1",
     "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
     "yaml": "^2.4.2"
   },
   "devDependencies": {

@@ -86,6 +86,9 @@ const useAxiosSSERequest = ({
           setStatus('error');
           // isTerminatedRef.current = true;
           // es.close();
+           // 主动关闭连接
+          es.close();
+          eventSourceRef.current = null;
         }
         onError?.(err);
       }

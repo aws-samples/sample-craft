@@ -56,9 +56,10 @@ import {
   MODE,
   ReadyState,
   SYS_ERROR_PREFIX,
+  // REFERENCE,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
-import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
+import { BaseConfig, DocumentData, MessageDataType, SessionMessage } from 'src/types';
 import { getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
 import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 
@@ -69,6 +70,7 @@ interface MessageType {
     data: string;
     monitoring: string;
   };
+  refs?: string[];
   attachments?: File[];
 }
 
@@ -262,12 +264,13 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
   const [modelSettingExpand, setModelSettingExpand] = useState(false);
   const [additionalConfigError, setAdditionalConfigError] = useState('');
   const [apiEndpointError, setApiEndpointError] = useState('');
+  const [currentDocumentList, setCurrentDocumentList] = useState<string[]>([]);
   const [apiKeyArnError, setApiKeyArnError] = useState('');
   const [lastMessage, _] = useState<MessageDataType | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // const [readyState, setReadyState] = useState<'in-progress' | 'success' | 'error'>('in-progress');
-
+  // let currentDocumentList: DocumentData[] = [];
   const [sageMakerEndpoints, setSageMakerEndpoints] = useState<
     { label: string; value: string }[]
   >([]);
@@ -656,12 +659,24 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
           }
         });
       }
+      if (message.ref_docs?.length > 0) {
+        // console.log('======message.ref_docs', message.ref_docs);
+        // currentDocumentList = message.ref_docs;
+        setCurrentDocumentList(prev =>  [...prev, ...message.ref_docs]);
+        // setCurrentAIMessage((prev) => {
+        //   return prev + ` \n ${message.ref_docs.join('\n')}`;
+        // });
+      }
+
+
+
     } else if (message.message_type === 'ERROR') {
       setCurrentAIMessage((prev) => {
         return SYS_ERROR_PREFIX + prev + (message?.message?.content ?? '');
       });
       setAiSpeaking(false);
       setIsMessageEnd(true);
+      setMessageToSend(null);
     }
     
     else if (message.message_type === 'END' ) {
@@ -711,17 +726,21 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             type: 'ai',
             message: {
               data: currentAIMessage,
-              monitoring: currentMonitorMessage,
+              monitoring: currentMonitorMessage,  
             },
+            refs: currentDocumentList,
           },
         ];
       });
+
+      // console.log('@@@@@@currentDocumentList', currentDocumentList);
       // Reset current messages after adding to history
       setCurrentAIMessage('');
       setCurrentMonitorMessage('');
+      setCurrentDocumentList([]); // Clear the document list
       setIsMessageEnd(false);
     }
-  }, [isMessageEnd]);
+  }, [isMessageEnd, currentDocumentList]); // Add currentDocumentList to dependencies
 
   const handleClickSendMessage = async (customQuery?: string) => {
     if (aiSpeaking) {
@@ -1199,6 +1218,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
         },
       ]}
     >
+      {/* {state.activeDocumentId} */}
       <div className="chat-container-layout">
         <ContentLayout
           header={
@@ -1710,12 +1730,14 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
             >
               <div className="chat-container mt-10">
                 <div className="chat-message flex-v flex-1 gap-10">
+                  {/* { messages} */}
                   {messages.map((msg, index) => (
                     <div key={identity(index)}>
                       <Message
                         showTrace={showTrace}
                         type={msg.type}
                         message={msg.message}
+                        documentList={msg.refs}
                       />
                       {msg.type === 'ai' && index !== 0 && (
                         <div
@@ -1763,6 +1785,7 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
                         aiSpeaking={aiSpeaking}
                         type="ai"
                         showTrace={showTrace}
+                        // documentList={msg.refs}
                         message={{
                           data: currentAIMessage,
                           monitoring: currentMonitorMessage,

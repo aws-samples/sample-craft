@@ -128,8 +128,8 @@ def stream_response(event_body: dict, response: dict):
             figure = response.get("extra_response", {}).get("ref_figures", [])
             if figure:
                 context_msg["ddb_additional_kwargs"]["figure"] = figure
-
             ref_doc = response.get("extra_response", {}).get("ref_docs", [])
+            print(f"################# ref_doc is {ref_doc}")
             if ref_doc:
                 md_images = []
                 md_image_list = []
@@ -166,10 +166,11 @@ def stream_response(event_body: dict, response: dict):
                                     f"Error processing markdown image: {str(e)}, in line: {line}")
                                 img_start = line.find("![", img_start + 2)
                                 continue
-
+                context_msg["ddb_additional_kwargs"]["ref_docs"] = ref_doc
                 if md_images:
                     context_msg["ddb_additional_kwargs"].setdefault(
                         "figure", []).extend(md_images)
+
             send_message(context_msg, client_id)
             send_message({
                 "message_type": StreamMessageType.END,

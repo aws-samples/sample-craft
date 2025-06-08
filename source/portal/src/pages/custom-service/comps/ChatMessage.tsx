@@ -12,9 +12,10 @@ import {
   setCurrentSessionId,
 } from 'src/app/slice/cs-workspace';
 import { v4 as uuidv4 } from 'uuid';
-import { LLM_BOT_COMMON_MODEL_LIST, OIDC_STORAGE, ONLY_RAG_TOOL, ReadyState } from 'src/utils/const';
+import { LLM_BOT_COMMON_MODEL_LIST, OIDC_STORAGE, ONLY_RAG_TOOL, ReadyState, SYS_ERROR_PREFIX } from 'src/utils/const';
 import { getGroupName, initialSSEConnection, isTokenExpired } from 'src/utils/utils';
 import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
+import CCPMessage from './CCPMessage';
 
 const defaultConfig = {
   modelType: {
@@ -43,14 +44,14 @@ const onlyRAGTool =
     ? true
     : false
 ;
-interface MessageType {
+interface CCPMessageType {
   messageId: string;
   type: 'ai' | 'human';
   message: {
     data: string;
     monitoring: string;
-    documentList: DocumentData[];
   };
+  refs?: string[];
 }
 
 export const ChatMessage: React.FC = () => {
@@ -73,10 +74,11 @@ export const ChatMessage: React.FC = () => {
     label: 'admin',
     value: 'admin',
   };
-  const [requestContent, setRequestContent] = useState<BaseConfig>({
+  // const sessionId = uuidv4();
+  const [requestContent, __] = useState<BaseConfig>({
     query: "",
     entry_type: 'common',
-    session_id: "",
+    session_id: csWorkspaceState.currentSessionId,
     user_id: "",
     chatbot_config: {
       max_rounds_in_memory: parseInt(defaultConfig.maxRounds),
@@ -113,25 +115,30 @@ export const ChatMessage: React.FC = () => {
     },
   });
   const [currentDocumentList, setCurrentDocumentList] = useState<
-    DocumentData[]
+    string[]
   >([]);
   const oidc = JSON.parse(localStorage.getItem(OIDC_STORAGE) || '');
   if(isTokenExpired()){
     window.location.href = '/login'
     return null
   }
-  const [messages, setMessages] = useState<MessageType[]>([
+  const [messages, setMessages] = useState<CCPMessageType[]>([
     {
       messageId: id ?? '',
       type: 'ai',
       message: {
         data: t('welcomeMessage'),
         monitoring: '',
-        documentList: [],
       },
     },
   ]);
   const [isTyping] = useState(false);
+
+  const readyStateHeartBeat = useAxiosSSERequest(initialSSEConnection("/stream", requestContent, () => {
+    console.log('Initial SSE Connection successed:');
+  }, (err) => {
+    console.error('Initial SSE Connection failed', err);
+  }));
 
   const scrollToBottom = (delay = 0) => {
     setTimeout(() => {
@@ -214,7 +221,7 @@ export const ChatMessage: React.FC = () => {
     setCurrentDocumentList([]);
     const groupName: any = getGroupName();
     // const groupName: string[] = auth?.user?.profile?.['cognito:groups'] as any;
-    let message = {
+    let message: any = {
       query: autoMessage || userMessage,
       entry_type: 'common',
       session_id: csWorkspaceState.currentSessionId,
@@ -245,7 +252,10 @@ export const ChatMessage: React.FC = () => {
         },
       },
     };
-    setRequestContent(message);
+
+    message._triggerId = Date.now() + Math.random();
+    setMessageToSend(message);
+    // setRequestContent(message);
     // sendMessage(JSON.stringify(message));
     if (!autoMessage) {
       setMessages((prev) => {
@@ -257,7 +267,6 @@ export const ChatMessage: React.FC = () => {
             message: {
               data: userMessage,
               monitoring: '',
-              documentList: [],
             },
           },
         ];
@@ -316,18 +325,23 @@ export const ChatMessage: React.FC = () => {
       }
       // handle ref_docs
       if (message.ref_docs?.length > 0) {
-        setCurrentDocumentList(message.ref_docs);
+        setCurrentDocumentList(prev =>  [...prev, ...message.ref_docs]);
       }
+    }else if (message.message_type === 'ERROR') {
+      setCurrentAIMessage((prev) => {
+        return SYS_ERROR_PREFIX + prev + (message?.message?.content ?? '');
+      });
+      setAiSpeaking(false);
+      setIsMessageEnd(true);
     } else if (message.message_type === 'END') {
       setCurrentAIMessageId(message.message_id);
       setIsMessageEnd(true);
       scrollToBottom(100);
     }
   };
-
-  const readyState = useAxiosSSERequest(initialSSEConnection("/stream", requestContent, (data) => {
-    console.log('Received SSE message:', data);
-    try {
+  const [messageToSend, setMessageToSend] = useState<BaseConfig | null>(null);
+  useAxiosSSERequest(
+    messageToSend ? initialSSEConnection("/stream", messageToSend, (data) => {
       if (data.event === 'message') {
         const innerMessage = JSON.parse(data.data);
         if (innerMessage.message_type === 'MONITOR') {
@@ -338,12 +352,35 @@ export const ChatMessage: React.FC = () => {
           handleAIMessage(innerMessage);
         }
       }
-    } catch (error) {
-      console.error('Error parsing SSE message:', error);
+    }, (err) => {
+      console.error('SSE Request failed', err);
+    }) : {
+      path: '/stream',
+      params: '',
+      onMessage: () => {},
+      onError: () => {}
     }
-  }, (err) => {
-    console.error('SSE failed', err);
-  }));
+  );
+
+  // useAxiosSSERequest(initialSSEConnection("/stream", requestContent, (data) => {
+  //   console.log('Received SSE message:', data);
+  //   try {
+  //     if (data.event === 'message') {
+  //       const innerMessage = JSON.parse(data.data);
+  //       if (innerMessage.message_type === 'MONITOR') {
+  //         setCurrentMonitorMessage((prev) => {
+  //           return prev + (innerMessage?.message ?? '');
+  //         });
+  //       } else {
+  //         handleAIMessage(innerMessage);
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Error parsing SSE message:', error);
+  //   }
+  // }, (err) => {
+  //   console.error('SSE failed', err);
+  // }));
 
   // useEffect(() => {
   //   if (lastMessage !== null) {
@@ -387,11 +424,11 @@ export const ChatMessage: React.FC = () => {
   useEffect(() => {
     if (isMessageEnd) {
       setAiSpeaking(false);
-      const documentList =
-        currentDocumentList.map((doc) => ({
-          ...doc,
-          uuid: uuidv4(),
-        })) ?? [];
+      // const documentList =
+      //   currentDocumentList.map((doc) => ({
+      //     ...doc,
+      //     uuid: uuidv4(),
+      //   })) ?? [];
       setMessages((prev) => {
         return [
           ...prev,
@@ -401,14 +438,14 @@ export const ChatMessage: React.FC = () => {
             message: {
               data: currentAIMessage,
               monitoring: currentMonitorMessage,
-              documentList: documentList,
             },
+            refs: currentDocumentList,
           },
         ];
       });
-      dispatch(addDocumentList(documentList));
+      dispatch(addDocumentList(currentDocumentList));
     }
-  }, [isMessageEnd]);
+  }, [isMessageEnd, currentDocumentList]);
 
   if (loadingHistory) {
     return (
@@ -424,17 +461,17 @@ export const ChatMessage: React.FC = () => {
         <div className="message-list" ref={messageListRef}>
           {messages.map((msg, index) => (
             <div key={identity(index)}>
-              <Message
+              <CCPMessage
                 showTrace={false}
                 type={msg.type}
                 message={msg.message}
-                documentList={msg.message.documentList}
+                documentList={msg.refs}
               />
             </div>
           ))}
           {aiSpeaking && (
             <div>
-              <Message
+              <CCPMessage
                 aiSpeaking={aiSpeaking}
                 type="ai"
                 showTrace={false}
@@ -442,7 +479,7 @@ export const ChatMessage: React.FC = () => {
                   data: currentAIMessage,
                   monitoring: currentMonitorMessage,
                 }}
-                documentList={currentDocumentList}
+                // documentList={currentDocumentList}
               />
             </div>
           )}
@@ -464,7 +501,7 @@ export const ChatMessage: React.FC = () => {
                   e.detail.key === 'Enter' &&
                   !e.detail.shiftKey && // 添加 shift+enter 支持换行
                   !aiSpeaking &&
-                  readyState === ReadyState.SUCCESS
+                  readyStateHeartBeat === ReadyState.SUCCESS
                 ) {
                   e.preventDefault();
                   handleSendMessage();
@@ -474,7 +511,7 @@ export const ChatMessage: React.FC = () => {
           </div>
           <div>
             <Button
-              disabled={aiSpeaking || readyState !== ReadyState.SUCCESS}
+              disabled={aiSpeaking || readyStateHeartBeat !== ReadyState.SUCCESS}
               onClick={() => {
                 handleSendMessage();
               }}

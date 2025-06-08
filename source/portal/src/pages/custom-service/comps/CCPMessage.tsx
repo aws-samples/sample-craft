@@ -14,9 +14,9 @@ import { BounceLoader } from 'react-spinners';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
 import BedrockImg from 'src/assets/bedrock.webp';
-import './Message.css';
+import './CCPMessage.css';
 // import { DocumentData } from 'src/types';
-import type { IconProps } from '@cloudscape-design/components';
+// import type { IconProps } from '@cloudscape-design/components';
 import { useAppDispatch } from 'src/app/hooks';
 import {
   setActiveDocumentId,
@@ -25,7 +25,7 @@ import {
 import { SYS_ERROR_PREFIX } from 'src/utils/const';
 import { useTranslation } from 'react-i18next';
 
-interface MessageProps {
+interface CCPMessageProps {
   type: 'ai' | 'human';
   message: {
     data: string;
@@ -65,7 +65,7 @@ const getFileIcon = (fileName: string): string => {
   }
 };
 
-const Message: React.FC<MessageProps> = ({
+const CCPMessage: React.FC<CCPMessageProps> = ({
   showTrace,
   type,
   message,
@@ -73,10 +73,9 @@ const Message: React.FC<MessageProps> = ({
   documentList,
 }) => {
   const { t } = useTranslation();
-  // const dispatch = useAppDispatch();
+  const dispatch = useAppDispatch();
   const handleDocClick = (source: string) => {
-    // dispatch(setActiveDocumentId(source));
-    alert(source)
+    dispatch(setActiveDocumentId(source));
   };
 
   // console.log('documentList!!!!!', documentList);
@@ -105,7 +104,7 @@ const Message: React.FC<MessageProps> = ({
               onMouseLeave={() => setIsHovered(false)}
             >
               <div className="message">
-                {msgContent.startsWith(SYS_ERROR_PREFIX) && <StatusIndicator type="error">
+              {msgContent.startsWith(SYS_ERROR_PREFIX) && <StatusIndicator type="error">
                   <span style={{fontWeight: 'bold'}}>{t('systemError')}</span>
                 </StatusIndicator>}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -118,6 +117,45 @@ const Message: React.FC<MessageProps> = ({
                 )}
               </div>
               {documentList && documentList.length > 0 && (
+                <div className="document-list">
+                  <SpaceBetween direction='vertical' size='xs'>
+                  <StatusIndicator type="info">
+                  <span style={{fontWeight: 'bold'}}>{t('referenceDocuments')}</span>
+                </StatusIndicator>
+                <div>
+                <Grid gridDefinition={[{
+                  colspan: 12
+                }]}>
+                  {documentList.map((doc) => {
+                    return (
+                      
+                      <div
+                        key={doc}
+                        className="document-item"
+                        onClick={() => handleDocClick(doc)}
+                      >
+                      <SpaceBetween direction='horizontal' size='xs'>
+                      <div style={{paddingTop: 2}}>
+                        <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                      </div>
+                      <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
+                      </SpaceBetween>
+                      </div>
+                      // <div
+                      //   key={doc.page_content}
+                      //   className="document-item"
+                      //   onClick={() => handleDocClick(doc.uuid)}
+                      // >
+                      //   <Icon name={iconName} />
+                      //   <span className="doc-name" title={fileName}>
+                      //     {fileName}
+                      //   </span>
+                      // </div>
+                    );
+                  })}</Grid></div></SpaceBetween>
+                </div>
+              )}
+              {/* {documentList && documentList.length > 0 && (
                 <div className="document-list">
                   <SpaceBetween direction='vertical' size='xs'>
                   <StatusIndicator type="info">
@@ -157,7 +195,7 @@ const Message: React.FC<MessageProps> = ({
                     );
                   })}</Grid></div></SpaceBetween>
                 </div>
-              )}
+              )} */}
               {showTrace && message.monitoring && (
                 <div className="monitor mt-10">
                   <ExpandableSection
@@ -267,4 +305,4 @@ const Message: React.FC<MessageProps> = ({
   );
 };
 
-export default Message;
+export default CCPMessage;
