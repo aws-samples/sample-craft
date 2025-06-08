@@ -2,7 +2,6 @@ import {
   Button,
   ExpandableSection,
   Grid,
-  Icon,
   Popover,
   SpaceBetween,
   StatusIndicator,
@@ -16,12 +15,6 @@ import remarkHtml from 'remark-html';
 import BedrockImg from 'src/assets/bedrock.webp';
 import './Message.css';
 // import { DocumentData } from 'src/types';
-import type { IconProps } from '@cloudscape-design/components';
-import { useAppDispatch } from 'src/app/hooks';
-import {
-  setActiveDocumentId,
-  // setAutoSendMessage,
-} from 'src/app/slice/cs-workspace';
 import { SYS_ERROR_PREFIX } from 'src/utils/const';
 import { useTranslation } from 'react-i18next';
 

@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { identity } from 'lodash';
 import { Button, Spinner, Textarea } from '@cloudscape-design/components';
-import Message from '../../chatbot/components/Message';
 import { BaseConfig, DocumentData, MessageDataType, SessionMessage } from 'src/types';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { useAppDispatch, useAppSelector } from 'src/app/hooks';
@@ -61,7 +60,7 @@ export const ChatMessage: React.FC = () => {
 
   // const auth = useAuth();
   const fetchData = useAxiosRequest();
-  const { id } = useParams();
+  const { id } = useParams() || uuidv4();
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [currentAIMessage, setCurrentAIMessage] = useState('');
   const [currentMonitorMessage, setCurrentMonitorMessage] = useState('');
@@ -224,7 +223,7 @@ export const ChatMessage: React.FC = () => {
     let message: any = {
       query: autoMessage || userMessage,
       entry_type: 'common',
-      session_id: csWorkspaceState.currentSessionId,
+      session_id: csWorkspaceState.currentSessionId || uuidv4(),
       user_id: oidc['username'] || 'default_user_id',
       chatbot_config: {
         max_rounds_in_memory: 7,

@@ -2,7 +2,6 @@ import {
   Button,
   ExpandableSection,
   Grid,
-  Icon,
   Popover,
   SpaceBetween,
   StatusIndicator,

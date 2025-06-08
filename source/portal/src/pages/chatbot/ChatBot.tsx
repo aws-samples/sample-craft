@@ -59,7 +59,7 @@ import {
   // REFERENCE,
 } from 'src/utils/const';
 import { v4 as uuidv4 } from 'uuid';
-import { BaseConfig, DocumentData, MessageDataType, SessionMessage } from 'src/types';
+import { BaseConfig, MessageDataType, SessionMessage } from 'src/types';
 import { getGroupName, initialSSEConnection, isTokenExpired, isValidJson } from 'src/utils/utils';
 import useAxiosSSERequest from 'src/hooks/useAxiosSSERequest';
 

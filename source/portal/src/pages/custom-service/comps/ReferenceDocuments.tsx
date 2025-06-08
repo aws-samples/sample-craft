@@ -25,14 +25,15 @@ const ReferenceDocuments: React.FC = () => {
     <div className="docs-tabs">
       <div className="tabs-list">
         {csWorkspaceState.documentList.map((doc) => (
-          <button
-            key={doc.uuid}
-            className={`tab ${activeDocId === doc.uuid ? 'active' : ''}`}
-            onClick={() => setActiveDocId(doc.uuid)}
-          >
-            <span className="title">{doc.source.split('/').pop()}</span>
-            {activeDocId === doc.uuid && <span className="active-indicator" />}
-          </button>
+          <></>
+          // <button
+          //   key={doc.uuid}
+          //   className={`tab ${activeDocId === doc.uuid ? 'active' : ''}`}
+          //   onClick={() => setActiveDocId(doc.uuid)}
+          // >
+          //   <span className="title">{doc.source.split('/').pop()}</span>
+          //   {activeDocId === doc.uuid && <span className="active-indicator" />}
+          // </button>
         ))}
       </div>
       <div className="tab-content">
@@ -42,11 +43,11 @@ const ReferenceDocuments: React.FC = () => {
               <ExpandableSection headerText="Page Content">
                 <Alert>
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkHtml]}>
-                    {
+                    {/* {
                       csWorkspaceState.documentList.find(
                         (d) => d.uuid === activeDocId,
                       )?.page_content
-                    }
+                    } */}
                   </ReactMarkdown>
                 </Alert>
               </ExpandableSection>
@@ -54,9 +55,9 @@ const ReferenceDocuments: React.FC = () => {
                 <Alert>
                   <ReactMarkdown remarkPlugins={[remarkGfm, remarkHtml]}>
                     {
-                      csWorkspaceState.documentList.find(
-                        (d) => d.uuid === activeDocId,
-                      )?.retrieval_content
+                      // csWorkspaceState.documentList.find(
+                      //   (d) => d.uuid === activeDocId,
+                      // )?.retrieval_content
                     }
                   </ReactMarkdown>
                 </Alert>
@@ -64,28 +65,28 @@ const ReferenceDocuments: React.FC = () => {
               <div>
                 <div className="doc-header flex align-center justify-between">
                   <h2>
-                    {csWorkspaceState.documentList
+                    {/* {csWorkspaceState.documentList
                       .find((d) => d.uuid === activeDocId)
                       ?.source.split('/')
-                      .pop()}
+                      .pop()} */}
                   </h2>
                   <span className="last-modified">
                     Retrieval Score:{' '}
-                    {
+                    {/* {
                       csWorkspaceState.documentList.find(
                         (d) => d.uuid === activeDocId,
                       )?.retrieval_score
-                    }
+                    } */}
                   </span>
                 </div>
-                <DocFileViewer
+                {/* <DocFileViewer
                   key={activeDocId}
                   source={
                     csWorkspaceState.documentList.find(
-                      (d) => d.uuid === activeDocId,
+                      (d) => d === activeDocId,
                     )?.source || ''
                   }
-                />
+                /> */}
               </div>
             </SpaceBetween>
           </div>

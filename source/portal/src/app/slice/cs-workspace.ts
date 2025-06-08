@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { ChatSessionType, DocumentData } from 'src/types';
+import { ChatSessionType } from 'src/types';
 
 // Define a type for the slice state
 interface CSWorkspaceState {
