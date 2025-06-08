@@ -129,8 +129,12 @@ def stream_response(event_body: dict, response: dict):
             if figure:
                 context_msg["ddb_additional_kwargs"]["figure"] = figure
             ref_doc = response.get("extra_response", {}).get("ref_docs", [])
-            print(f"################# ref_doc is {ref_doc}")
             if ref_doc:
+                ref_doc_metadates = []
+                for doc in ref_doc:
+                    ref_doc_metadates.append(doc.metadata['file_path'])
+                context_msg.setdefault(
+                        "ref_docs", []).extend(ref_doc_metadates)
                 md_images = []
                 md_image_list = []
                 for doc in ref_doc:
