@@ -13,7 +13,7 @@
 
 import { StackProps, NestedStack, Duration } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
-// import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
 import { join } from "path";
 
@@ -32,6 +32,8 @@ import { SharedConstructOutputs } from "../shared/shared-construct";
 import { ModelConstructOutputs } from "../model/model-construct";
 import { ChatTablesConstruct } from "./chat-tables";
 import { ConnectConstruct } from "../connect/connect-construct";
+import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
+import { Runtime } from "aws-cdk-lib/aws-lambda";
 // import * as ecs_patterns from "aws-cdk-lib/aws-ecs-patterns";
 
 
@@ -72,6 +74,7 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
   public loadBalancer: elbv2.ApplicationLoadBalancer;
   public listener: elbv2.ApplicationListener;
   public container: ecs.ContainerDefinition;
+  public ecsTriggererLambda?: lambda.Function;
 
   constructor(scope: Construct, id: string, props: ChatStackProps) {
     super(scope, id);
@@ -239,8 +242,35 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
     });
     this.albDomainEndpoint = this.loadBalancer.loadBalancerDnsName;
 
-    if (props.config.chat.amazonConnect.enabled) {
-      new ConnectConstruct(this, "connect-construct");
+    if (props.config.chat.amazonConnect.enabled && securityGroups) {
+      // Create secret for auth token
+      const authTokenSecret = new secretsmanager.Secret(this, "ConnectAuthToken", {
+        generateSecretString: {
+          secretStringTemplate: JSON.stringify({ token: "ReplaceWithRealToken" }),
+          generateStringKey: "token"
+        }
+      });
+      // Create lambda function to trigger ECS
+      this.ecsTriggererLambda = new PythonFunction(this, 'EcsTriggererLambda', {
+        runtime: Runtime.PYTHON_3_12,
+        memorySize: 512,
+        entry: join(__dirname, "../../../lambda/connect"),
+        index: "main.py",
+        handler: "lambda_handler",
+        timeout: Duration.minutes(15),
+        vpc: vpc,
+        securityGroups: securityGroups,
+        environment: {
+          ALB_ENDPOINT: this.albDomainEndpoint,
+          AUTH_TOKEN_SECRET_ARN: authTokenSecret.secretArn
+        },
+      });
+      
+      authTokenSecret.grantRead(this.ecsTriggererLambda);
+
+      new ConnectConstruct(this, "connect-construct", {
+        ecsTriggererLambda: this.ecsTriggererLambda
+      });
     }
   }
 }

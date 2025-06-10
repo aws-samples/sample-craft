@@ -12,7 +12,7 @@ RUN python -m pip install --user pipx && \
     python -m pipx ensurepath
 
 # Install uvx using pipx
-RUN /root/.local/bin/pipx install uvx
+# RUN /root/.local/bin/pipx install uvx
 
 # Copy requirements file
 COPY requirements.txt .
