@@ -337,12 +337,6 @@ def default_event_handler(event_body: dict, context: dict):
 
 def lambda_handler(event_body: dict, context: dict):
     logger.info(f"Raw event_body: {event_body}")
-    # if "message_type" in event_body and WSConnectionSignal.STOP == event_body["message_type"]:
-    #     ws_connection_id = context["ws_connection_id"]
-    #     logger.info("Received stop signal for connection %s", ws_connection_id)
-    #     set_stop_signal(ws_connection_id)
-    #     stop_message = f"Stop signal has been set for WebSocket connection {ws_connection_id}"
-    #     return {"message": stop_message}
     # Compatible with Connect handler
     if "body" in event_body:
         event_body = json.loads(event_body["body"])
