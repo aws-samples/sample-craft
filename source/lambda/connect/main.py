@@ -22,8 +22,6 @@ def get_auth_token():
         raise e
 
 def lambda_handler(event, context):
-    logger.info('Received SQS message:', json.dumps(event))
-    
     try:
         alb_endpoint = os.environ['ALB_ENDPOINT']
         pool_id = os.environ['POOL_ID']
@@ -45,7 +43,6 @@ def lambda_handler(event, context):
             )
             
             response.raise_for_status()
-            logger.info(f'Successfully processed message through /llm endpoint. Response: {response.text}')
         
         return {
             'statusCode': 200,
