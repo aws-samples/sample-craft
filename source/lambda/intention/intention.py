@@ -107,7 +107,6 @@ else:
 
 dynamodb_client = boto3.client("dynamodb")
 s3_client = boto3.client("s3")
-bedrock_client = boto3.client("bedrock-runtime", region_name=bedrock_region)
 
 credentials = boto3.Session().get_credentials()
 
@@ -590,6 +589,7 @@ def __refresh_index(index: str, modelId: str, qaList):
 def __append_embeddings(index, modelId, qaList: list):
     actions = []
     documents = []
+    bedrock_client = boto3.client("bedrock-runtime", region_name=bedrock_region)
     for item in qaList:
         question = item["question"]
         embedding_func = BedrockEmbeddings(
