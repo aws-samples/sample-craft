@@ -136,19 +136,40 @@ def compose_connect_body(event_body: dict, context: dict):
     agent_flow_body["ddb_history_obj"] = ddb_history_obj
     agent_flow_body["stream"] = False
     agent_flow_body["custom_message_id"] = ""
+
+
     agent_flow_body["chatbot_config"] = {
-        "chatbot_mode": "agent",
+        "max_rounds_in_memory": 7,
         "group_name": "Admin",
         "chatbot_id": chatbot_id,
+        "chatbot_mode": "agent",
         "use_history": True,
-        "enable_trace": True,
-        "use_websearch": True,
+        "enable_trace": False,
+        "use_websearch": False,
+        "google_api_key": "",
         "default_llm_config": {
-            "model_id": "anthropic.claude-3-sonnet-20240229-v1:0",
+            "model_id": "us.amazon.nova-pro-v1:0",
             "endpoint_name": "",
-            "model_kwargs": {"temperature": 0.01, "max_tokens": 1000},
+            "provider": "Bedrock",
+            "base_url": "",
+            "api_key_arn": "",
+            "model_kwargs": {
+                "temperature": 0.01,
+                "max_tokens": 1000
+            }
         },
-        "agent_config": {"only_use_rag_tool": False},
+        "default_retriever_config": {
+            "private_knowledge": {
+                "bm25_search_top_k": 5,
+                "bm25_search_score": 0.4,
+                "vector_search_top_k": 5,
+                "vector_search_score": 0.4,
+                "rerank_top_k": 10
+            }
+        },
+        "agent_config": {
+            "only_use_rag_tool": True
+        }
     }
 
     logger.info(agent_flow_body)
