@@ -187,8 +187,8 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
         MODEL_TABLE_NAME: this.modelTableName,
         INDEX_TABLE_NAME: this.indexTableName,
         OPENAI_KEY_ARN: openAiKey.secretArn,
-        CONNECT_USER_ARN: "",
-        CONNECT_DOMAIN_ID: "",
+        CONNECT_USER_ARN: "arn:aws:connect:us-east-1:817734611975:instance/86ce670a-1773-4342-b9a0-9735a7086d19/agent/bf2594d5-be7a-4618-a23c-6ba02beff243",
+        CONNECT_DOMAIN_ID: "bb6b6acf-7b42-4d5c-ab9f-3f6926b2bc1c",
         CONNECT_BOT_ID: "admin",
         KNOWLEDGE_BASE_ENABLED: props.config.knowledgeBase.enabled.toString(),
         KNOWLEDGE_BASE_TYPE: JSON.stringify(props.config.knowledgeBase.knowledgeBaseType || {}),
@@ -262,7 +262,8 @@ export class ChatStack extends NestedStack implements ChatStackOutputs {
         securityGroups: securityGroups,
         environment: {
           ALB_ENDPOINT: this.albDomainEndpoint,
-          AUTH_TOKEN_SECRET_ARN: authTokenSecret.secretArn
+          AUTH_TOKEN_SECRET_ARN: authTokenSecret.secretArn,
+          POOL_ID: '',
         },
       });
       

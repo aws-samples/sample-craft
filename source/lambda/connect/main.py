@@ -22,28 +22,25 @@ def lambda_handler(event, context):
     try:
         # Get ALB endpoint and auth token
         alb_endpoint = os.environ['ALB_ENDPOINT']
+        pool_id = os.environ['POOL_ID']
         auth_token = get_auth_token()
+        print(auth_token)
         
         # Extract message from SQS event
         for record in event['Records']:
             message = json.loads(record['body'])
+            print("message")
+            print(message)
             
-            # Prepare request payload for /llm endpoint
-            payload = {
-                "query": message.get('query', ''),
-                "entry_type": message.get('entry_type', 'common'),
-                "session_id": message.get('session_id'),
-                "user_id": message.get('user_id'),
-                "chatbot_config": message.get('chatbot_config', {})
-            }
             
             # Call the /llm endpoint
             response = requests.post(
                 f'http://{alb_endpoint}/llm',
-                json=payload,
+                json=message,
                 headers={
                     'Content-Type': 'application/json',
-                    'Authorization': auth_token
+                    'Authorization': auth_token,
+                    'Oidc-Info': '{\"provider\":\"cognito\",\"poolId\":\"' + pool_id + '\"}'
                 }
             )
             
