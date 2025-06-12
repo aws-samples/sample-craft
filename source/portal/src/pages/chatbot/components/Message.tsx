@@ -68,8 +68,10 @@ const Message: React.FC<MessageProps> = ({
   const { t } = useTranslation();
   // const dispatch = useAppDispatch();
   const handleDocClick = (source: string) => {
-    // dispatch(setActiveDocumentId(source));
-    alert(source)
+    // Prevent default behavior
+    event?.preventDefault();
+    // You can add your document handling logic here
+    console.log('Document clicked:', source);
   };
 
   // console.log('documentList!!!!!', documentList);

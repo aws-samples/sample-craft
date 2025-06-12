@@ -11,7 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Runtime } from "aws-cdk-lib/aws-lambda";
+import { Code, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
 import * as path from "path";
 import { Construct } from "constructs";
 import * as pyLambda from "@aws-cdk/aws-lambda-python-alpha";
@@ -145,4 +145,16 @@ export class LambdaLayers {
     );
     return intentionLayer;
   }
+
+  // createLibreOfficeLayer() {
+  //   const libreOfficeLayer = new LayerVersion(this.scope, 'LibreOfficeLayer', {
+  //     code: Code.fromAsset(
+  //       path.join(__dirname, '../../../lambda/layers/libreoffice/libreoffice-layer.zip')
+  //     ),
+  //     compatibleRuntimes: [Runtime.PYTHON_3_12],
+  //     description: 'LibreOffice layer as pre-zipped asset',
+  //   });
+  //   return libreOfficeLayer;
+  // }
+
 }

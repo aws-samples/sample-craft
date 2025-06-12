@@ -17,6 +17,7 @@ import { Construct } from "constructs";
 import { IVpc, SecurityGroup, ISubnet } from "aws-cdk-lib/aws-ec2";
 import { ILayerVersion } from "aws-cdk-lib/aws-lambda";
 import { Role, PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { Size } from "aws-cdk-lib";
 
 
 interface LambdaFunctionProps {
@@ -32,6 +33,7 @@ interface LambdaFunctionProps {
   memorySize?: number;
   role?: Role;
   statements?: PolicyStatement[];
+  ephemeralStorageSize?: Size;
 }
 
 export class LambdaFunction extends Construct {
@@ -52,6 +54,7 @@ export class LambdaFunction extends Construct {
       environment: props.environment,
       layers: props.layers,
       allowPublicSubnet: true,
+      ephemeralStorageSize: props.ephemeralStorageSize,
     };
 
     if (props.vpc) {

@@ -74,6 +74,8 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const handleDocClick = (source: string) => {
+    event?.preventDefault();
+    event?.stopPropagation();
     dispatch(setActiveDocumentId(source));
   };
 
@@ -125,21 +127,38 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                 <Grid gridDefinition={[{
                   colspan: 12
                 }]}>
-                  {documentList.map((doc) => {
+                  <SpaceBetween direction='vertical' size="xxxs">
+                                    {documentList.map((doc) => {
                     return (
-                      
                       <div
                         key={doc}
                         className="document-item"
                         onClick={() => handleDocClick(doc)}
                       >
-                      <SpaceBetween direction='horizontal' size='xs'>
-                      <div style={{paddingTop: 2}}>
-                        <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                        <SpaceBetween direction='horizontal' size='xs'>
+                          <div style={{paddingTop: 2}}>
+                            <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                          </div>
+                          <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
+                        </SpaceBetween>
                       </div>
-                      <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
-                      </SpaceBetween>
+                    );
+                  })}
+                  {documentList.map((doc) => {
+                    return (
+                      <div
+                        key={doc}
+                        className="document-item"
+                        onClick={() => handleDocClick(doc)}
+                      >
+                        <SpaceBetween direction='horizontal' size='xs'>
+                          <div style={{paddingTop: 2}}>
+                            <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                          </div>
+                          <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
+                        </SpaceBetween>
                       </div>
+
                       // <div
                       //   key={doc.page_content}
                       //   className="document-item"
@@ -151,7 +170,8 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                       //   </span>
                       // </div>
                     );
-                  })}</Grid></div></SpaceBetween>
+                  }
+                  )}</SpaceBetween></Grid></div></SpaceBetween>
                 </div>
               )}
               {/* {documentList && documentList.length > 0 && (

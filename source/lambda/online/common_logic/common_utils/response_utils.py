@@ -170,7 +170,7 @@ def stream_response(event_body: dict, response: dict):
                                     f"Error processing markdown image: {str(e)}, in line: {line}")
                                 img_start = line.find("![", img_start + 2)
                                 continue
-                context_msg["ddb_additional_kwargs"]["ref_docs"] = ref_doc
+                # context_msg["ddb_additional_kwargs"]["ref_docs"] = ref_doc
                 if md_images:
                     context_msg["ddb_additional_kwargs"].setdefault(
                         "figure", []).extend(md_images)

@@ -1107,15 +1107,34 @@ const ChatBot: React.FC<ChatBotProps> = (props: ChatBotProps) => {
     localStorage.setItem('SHOW_FIGURES', showFigures ? 'true' : 'false');
   }, [showFigures]);
 
-  const handleStopMessage = () => {
+  const handleStopMessage = async () => {
     const message = {
       message_type: 'STOP',
       session_id: sessionId,
       user_id: oidc['username'] || 'default_user_id',
     };
 
+    // try {
+    //   // Send stop message to backend
+    //   await fetchAPIData({
+    //     url: 'stream/stop',
+    //     method: 'post',
+    //     data: message
+    //   });
+    // } catch (error) {
+    //   console.error('Error sending stop message:', error);
+    // }
+
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    setAiSpeaking(false);
+    setIsMessageEnd(true);
+    setMessageToSend(null);
+
     console.info('Send stop message:', message);
-    // sendMessage(JSON.stringify(message));
   };
 
   // Update the render send button section
