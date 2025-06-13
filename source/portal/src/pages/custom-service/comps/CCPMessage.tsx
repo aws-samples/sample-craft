@@ -13,12 +13,18 @@ import { BounceLoader } from 'react-spinners';
 import remarkGfm from 'remark-gfm';
 import remarkHtml from 'remark-html';
 import BedrockImg from 'src/assets/bedrock.webp';
-import './Message.css';
+import './CCPMessage.css';
 // import { DocumentData } from 'src/types';
+// import type { IconProps } from '@cloudscape-design/components';
+import { useAppDispatch } from 'src/app/hooks';
+import {
+  setActiveDocumentId,
+  // setAutoSendMessage,
+} from 'src/app/slice/cs-workspace';
 import { SYS_ERROR_PREFIX } from 'src/utils/const';
 import { useTranslation } from 'react-i18next';
 
-interface MessageProps {
+interface CCPMessageProps {
   type: 'ai' | 'human';
   message: {
     data: string;
@@ -58,7 +64,7 @@ const getFileIcon = (fileName: string): string => {
   }
 };
 
-const Message: React.FC<MessageProps> = ({
+const CCPMessage: React.FC<CCPMessageProps> = ({
   showTrace,
   type,
   message,
@@ -66,15 +72,12 @@ const Message: React.FC<MessageProps> = ({
   documentList,
 }) => {
   const { t } = useTranslation();
-  // const dispatch = useAppDispatch();
+  const dispatch = useAppDispatch();
   const handleDocClick = (source: string) => {
-    // Prevent default behavior
     event?.preventDefault();
-    // You can add your document handling logic here
-    console.log('Document clicked:', source);
+    event?.stopPropagation();
+    dispatch(setActiveDocumentId(source));
   };
-
-  // console.log('documentList!!!!!', documentList);
 
   const [showCopyTooltip, setShowCopyTooltip] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -87,7 +90,7 @@ const Message: React.FC<MessageProps> = ({
   };
 
   const msgContent = message.data.replace(/~/g, '\\~')
-
+  
   return (
     <>
       {type === 'ai' && (
@@ -100,7 +103,7 @@ const Message: React.FC<MessageProps> = ({
               onMouseLeave={() => setIsHovered(false)}
             >
               <div className="message">
-                {msgContent.startsWith(SYS_ERROR_PREFIX) && <StatusIndicator type="error">
+              {msgContent.startsWith(SYS_ERROR_PREFIX) && <StatusIndicator type="error">
                   <span style={{fontWeight: 'bold'}}>{t('systemError')}</span>
                 </StatusIndicator>}
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -120,39 +123,29 @@ const Message: React.FC<MessageProps> = ({
                 </StatusIndicator>
                 <div>
                 <Grid gridDefinition={[{
-                  colspan: 6
-                }, {
-                  colspan: 6
+                  colspan: 12
                 }]}>
-                  {documentList.map((doc) => {
+                  <SpaceBetween direction='vertical' size="xxxs">
+                    {documentList.map((doc) => {
                     return (
-                      
                       <div
                         key={doc}
                         className="document-item"
                         onClick={() => handleDocClick(doc)}
                       >
-                      <SpaceBetween direction='horizontal' size='xs'>
-                      <div style={{paddingTop: 2}}>
-                        <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                        <SpaceBetween direction='horizontal' size='xs'>
+                          <div style={{paddingTop: 2}}>
+                            <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
+                          </div>
+                          <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
+                        </SpaceBetween>
                       </div>
-                      <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
-                      </SpaceBetween>
-                      </div>
-                      // <div
-                      //   key={doc.page_content}
-                      //   className="document-item"
-                      //   onClick={() => handleDocClick(doc.uuid)}
-                      // >
-                      //   <Icon name={iconName} />
-                      //   <span className="doc-name" title={fileName}>
-                      //     {fileName}
-                      //   </span>
-                      // </div>
                     );
-                  })}</Grid></div></SpaceBetween>
+                  })}  
+                  </SpaceBetween></Grid></div></SpaceBetween>
                 </div>
               )}
+              
               {showTrace && message.monitoring && (
                 <div className="monitor mt-10">
                   <ExpandableSection
@@ -231,15 +224,6 @@ const Message: React.FC<MessageProps> = ({
                         ariaLabel="copy"
                       />
                     </Popover>
-                    {/* <Button
-                      iconName="send"
-                      variant="icon"
-                      onClick={() => {
-                        console.log('send');
-                        dispatch(setAutoSendMessage(message.data));
-                      }}
-                      ariaLabel="send"
-                    /> */}
                   </div>
                 </div>
               )}
@@ -262,4 +246,4 @@ const Message: React.FC<MessageProps> = ({
   );
 };
 
-export default Message;
+export default CCPMessage;

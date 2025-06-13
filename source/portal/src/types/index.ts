@@ -180,13 +180,14 @@ export interface MessageDataType {
   custom_message_id: string;
   ddb_additional_kwargs: {
     figure: AdditionalImageType[];
+    ref_docs: DocumentData[];
   };
   message_type: 'START' | 'CHUNK' | 'END' | 'MONITOR' | 'CONTEXT' | 'REASON' | 'ERROR'; // START CHUNK END MONITORING
   message: {
     role: string;
     content: string;
   };
-  ref_docs: DocumentData[];
+  ref_docs: string[];
 }
 
 export interface CreatePromptResponse {

@@ -5,6 +5,7 @@ import { Dispatch, SetStateAction } from 'react';
 import { Config } from 'src/context/config-context';
 import { AlertType, BaseConfig } from 'src/types';
 import { decodeJwt } from 'jose';
+
 export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 
 
@@ -157,3 +158,19 @@ export const getGroupName = () => {
   }
   return ['Admin'];
 };
+
+/**
+ * 解析 S3 URI，例如：
+ * s3://my-bucket/documents/file.docx
+ * => { bucket: 'my-bucket', key: 'documents/file.docx' }
+ */
+export const parseS3Uri = (s3Uri: string): { bucket: string; key: string } => {
+  const match = s3Uri.match(/^s3:\/\/([^\/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`Invalid S3 URI: ${s3Uri}`);
+  }
+  return {
+    bucket: match[1],
+    key: match[2],
+  };
+}

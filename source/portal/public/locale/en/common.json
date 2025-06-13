@@ -340,6 +340,6 @@
     "guardrailVersionDesc": "Enter guardrail version configured in the Bedrock console.",
     "conditionalOption": "Conditional Option",
     "connecting": "Connecting...",
-    "systemError": "SYSTEM_ERROR"
+    "systemError": "System Error"
 }
 

@@ -36,6 +36,7 @@ import { AuthHub } from "../auth-hub";
 import { ChatbotManagementApi } from "./chatbot-management";
 import * as cr from 'aws-cdk-lib/custom-resources';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import { DocConverter } from "./doc-converter";
 
 interface ApiStackProps extends StackProps {
   config: SystemConfig;
@@ -413,6 +414,15 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
       });
       chatHistoryApi.node.addDependency(chatDelay);
 
+      const docConverter = new DocConverter(
+        scope, "DocConverter", {
+        api: this.api,
+        auth: this.auth,
+        iamHelper: this.iamHelper,
+        genMethodOption: this.genMethodOption,
+      });
+      docConverter.node.addDependency(chatDelay);
+
       const promptApi = new PromptApi(
         scope, "PromptApi", {
         api: this.api,
@@ -423,6 +433,7 @@ export class ApiConstruct extends Construct implements ApiConstructOutputs {
         genMethodOption: this.genMethodOption,
       });
       promptApi.node.addDependency(chatHistoryApi);
+      promptApi.node.addDependency(docConverter);
 
       const intentionApi = new IntentionApi(
         scope, "IntentionApi", {
