@@ -332,7 +332,21 @@ $hover-light: #f3f4f6;
       background: $bg-white;
       min-width: 500px;
       border-right: 1px solid $border;
+      .no-doc-selected {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: $text-secondary;
+        gap: 12px;
+        padding: 48px;
 
+        &::before {
+          content: '📄';
+          font-size: 32px;
+        }
+      }
+    }
       // 用户信息区域
       .profile-header {
         padding: 24px;
@@ -597,21 +611,7 @@ $hover-light: #f3f4f6;
               }
             }
 
-            .no-doc-selected {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              color: $text-secondary;
-              gap: 12px;
-              padding: 48px;
 
-              &::before {
-                content: '📄';
-                font-size: 32px;
-              }
-            }
-          }
         }
       }
     }
@@ -674,6 +674,7 @@ $hover-light: #f3f4f6;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            font-size: 14px;
             scroll-behavior: smooth;
             overscroll-behavior: contain;
             will-change: scroll-position;

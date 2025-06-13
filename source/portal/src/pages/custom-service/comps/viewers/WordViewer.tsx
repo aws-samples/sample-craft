@@ -5,6 +5,11 @@ import { useEffect, useState } from 'react';
 // import { convertWordFromS3ToPdfAndReturnUrl, parseS3Uri } from 'src/utils/utils';
 import useAxiosRequest from 'src/hooks/useAxiosRequest';
 import { parseS3Uri } from 'src/utils/utils';
+import { pdfjs } from 'react-pdf';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+// pdfjs.GlobalWorkerOptions.workerSrc = `/pdfjs/pdf.worker.min.js`;
 
 // Set up PDF.js worker
 // pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -35,10 +40,11 @@ const WordPreview = ({ fileKey }: { fileKey: string }) => {
         setPdfUrl(wordPreviewRes);
         setError('');
       } catch (err) {
-        setError('文档加载失败，请稍后重试');
-        console.error('PDF loading error:', err);
+        setError('File loading error');
+        console.error('File loading error:', err);
       }
     };
+    
     wordPreview();
   }, [fileKey]);
 
@@ -47,8 +53,8 @@ const WordPreview = ({ fileKey }: { fileKey: string }) => {
   };
 
   const onDocumentLoadError = (error: Error) => {
-    setError('PDF 加载失败，请稍后重试');
-    console.error('PDF loading error:', error);
+    setError('File loading error');
+    console.error('File loading error:', error);
   };
 
 //   if (error) return <div className="text-red-500">{error}</div>;

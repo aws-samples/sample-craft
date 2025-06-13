@@ -76,6 +76,7 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
   const handleDocClick = (source: string) => {
     event?.preventDefault();
     event?.stopPropagation();
+    console.log('!!!!!activeDocumentId', source);
     dispatch(setActiveDocumentId(source));
   };
 
@@ -144,7 +145,7 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                       </div>
                     );
                   })}
-                  {documentList.map((doc) => {
+                  {/* {documentList.map((doc) => {
                     return (
                       <div
                         key={doc}
@@ -170,8 +171,9 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                       //   </span>
                       // </div>
                     );
-                  }
-                  )}</SpaceBetween></Grid></div></SpaceBetween>
+                  } 
+                  )}*/}
+                  </SpaceBetween></Grid></div></SpaceBetween>
                 </div>
               )}
               {/* {documentList && documentList.length > 0 && (

@@ -1,32 +1,13 @@
-// import {
-//   Alert,
-//   ExpandableSection,
-//   SpaceBetween,
-// } from '@cloudscape-design/components';
-// import { Document, Page } from 'react-pdf';
 import React, { useEffect, useState } from 'react';
 import { useAppSelector } from 'src/app/hooks';
-// import ReactMarkdown from 'react-markdown';
-// import remarkGfm from 'remark-gfm';
-// import remarkHtml from 'remark-html';
 import { useTranslation } from 'react-i18next';
 import WordPreview from './viewers/WordViewer';
-// import ConfigContext from 'src/context/config-context';
-// import DocFileViewer from './DocFileViewer';
+
 const ReferenceDocuments: React.FC = () => {
   const { t } = useTranslation();
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const csWorkspaceState = useAppSelector((state) => state.csWorkspace);
   
-  // const s3 = new S3Client({ region: config?.oidcRegion });
-  // const [pdfUrl, setPdfUrl] = useState('');
-  // const [error, setError] = useState('');
-
-  // useEffect(() => {
-  //   fetch(`/api/preview-word?key=${encodeURIComponent(fileKey)}`)
-  //     .then((res) => res.json())
-  //     .then((data) => setPdfUrl(data.pdfUrl))
-  // }, [fileKey]);
 
   useEffect(() => {
     if (csWorkspaceState.activeDocumentId) {
@@ -36,6 +17,8 @@ const ReferenceDocuments: React.FC = () => {
 
   return (
     <div className="docs-tabs">
+      {activeDocId ? (
+        <>
       <div className="tabs-list">
         {csWorkspaceState.documentList.map((doc) => (
          
@@ -50,16 +33,14 @@ const ReferenceDocuments: React.FC = () => {
         ))}
       </div>
       <div className="tab-content">
-        {activeDocId ? (
-          <div className="document-preview">
+        <div className="document-preview">
             <WordPreview fileKey={activeDocId} />
           </div>
+        </div></>
         ) : (
           <div className="no-doc-selected">
             <p>{t('selectADocumentToPreview')}</p>
-          </div>
-        )}
-      </div>
+          </div>)}
     </div>
   );
 };
