@@ -293,10 +293,6 @@ async function sendCloudFormationResponse(event, context, responseStatus, respon
       resources: ['*']
     }));
 
-    
-
-    
-
     if (!props.config.deployRegion.startsWith("cn-")) {
       const userConstruct = new UserConstruct(this, "User", {
         deployRegion: props.config.deployRegion,
