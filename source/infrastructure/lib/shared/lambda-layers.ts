@@ -146,15 +146,4 @@ export class LambdaLayers {
     return intentionLayer;
   }
 
-  // createLibreOfficeLayer() {
-  //   const libreOfficeLayer = new LayerVersion(this.scope, 'LibreOfficeLayer', {
-  //     code: Code.fromAsset(
-  //       path.join(__dirname, '../../../lambda/layers/libreoffice/libreoffice-layer.zip')
-  //     ),
-  //     compatibleRuntimes: [Runtime.PYTHON_3_12],
-  //     description: 'LibreOffice layer as pre-zipped asset',
-  //   });
-  //   return libreOfficeLayer;
-  // }
-
 }

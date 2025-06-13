@@ -76,11 +76,8 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
   const handleDocClick = (source: string) => {
     event?.preventDefault();
     event?.stopPropagation();
-    console.log('!!!!!activeDocumentId', source);
     dispatch(setActiveDocumentId(source));
   };
-
-  // console.log('documentList!!!!!', documentList);
 
   const [showCopyTooltip, setShowCopyTooltip] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -93,7 +90,7 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
   };
 
   const msgContent = message.data.replace(/~/g, '\\~')
-
+  
   return (
     <>
       {type === 'ai' && (
@@ -129,7 +126,7 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                   colspan: 12
                 }]}>
                   <SpaceBetween direction='vertical' size="xxxs">
-                                    {documentList.map((doc) => {
+                    {documentList.map((doc) => {
                     return (
                       <div
                         key={doc}
@@ -144,79 +141,11 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                         </SpaceBetween>
                       </div>
                     );
-                  })}
-                  {/* {documentList.map((doc) => {
-                    return (
-                      <div
-                        key={doc}
-                        className="document-item"
-                        onClick={() => handleDocClick(doc)}
-                      >
-                        <SpaceBetween direction='horizontal' size='xs'>
-                          <div style={{paddingTop: 2}}>
-                            <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
-                          </div>
-                          <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
-                        </SpaceBetween>
-                      </div>
-
-                      // <div
-                      //   key={doc.page_content}
-                      //   className="document-item"
-                      //   onClick={() => handleDocClick(doc.uuid)}
-                      // >
-                      //   <Icon name={iconName} />
-                      //   <span className="doc-name" title={fileName}>
-                      //     {fileName}
-                      //   </span>
-                      // </div>
-                    );
-                  } 
-                  )}*/}
+                  })}  
                   </SpaceBetween></Grid></div></SpaceBetween>
                 </div>
               )}
-              {/* {documentList && documentList.length > 0 && (
-                <div className="document-list">
-                  <SpaceBetween direction='vertical' size='xs'>
-                  <StatusIndicator type="info">
-                  <span style={{fontWeight: 'bold'}}>{t('referenceDocuments')}</span>
-                </StatusIndicator>
-                <div>
-                <Grid gridDefinition={[{
-                  colspan: 6
-                }, {
-                  colspan: 6
-                }]}>
-                  {documentList.map((doc) => {
-                    return (
-                      
-                      <div
-                        key={doc}
-                        className="document-item"
-                        onClick={() => handleDocClick(doc)}
-                      >
-                      <SpaceBetween direction='horizontal' size='xs'>
-                      <div style={{paddingTop: 2}}>
-                        <img style={{width: '15px', height: '15px'}} src={`imgs/file/${getFileIcon(doc)}.png`} />
-                      </div>
-                      <div style={{fontSize: 14}}>{doc.split("/").pop()}</div>
-                      </SpaceBetween>
-                      </div>
-                      // <div
-                      //   key={doc.page_content}
-                      //   className="document-item"
-                      //   onClick={() => handleDocClick(doc.uuid)}
-                      // >
-                      //   <Icon name={iconName} />
-                      //   <span className="doc-name" title={fileName}>
-                      //     {fileName}
-                      //   </span>
-                      // </div>
-                    );
-                  })}</Grid></div></SpaceBetween>
-                </div>
-              )} */}
+              
               {showTrace && message.monitoring && (
                 <div className="monitor mt-10">
                   <ExpandableSection
@@ -295,15 +224,6 @@ const CCPMessage: React.FC<CCPMessageProps> = ({
                         ariaLabel="copy"
                       />
                     </Popover>
-                    {/* <Button
-                      iconName="send"
-                      variant="icon"
-                      onClick={() => {
-                        console.log('send');
-                        dispatch(setAutoSendMessage(message.data));
-                      }}
-                      ariaLabel="send"
-                    /> */}
                   </div>
                 </div>
               )}

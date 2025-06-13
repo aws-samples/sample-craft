@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from 'src/app/hooks';
 import { useParams } from 'react-router-dom';
 import {
   addDocumentList,
+  clearDocumentList,
   setCurrentSessionId,
 } from 'src/app/slice/cs-workspace';
 import { v4 as uuidv4 } from 'uuid';
@@ -407,27 +408,19 @@ export const ChatMessage: React.FC = () => {
   }, [csWorkspaceState]);
 
   const calculateRows = (value: string) => {
-    if (!value) return 1; // 空内容时返回 1 行
+    if (!value) return 1;
 
-    // 计算换行符的数量
     const newlines = (value.match(/\n/g) || []).length;
 
-    // 计算每行的字符数（假设每行约 50 个字符）
     const charsPerLine = 50;
     const lines = Math.ceil(value.length / charsPerLine);
 
-    // 取换行符数量和字符换行数量的较大值，并限制在 1-5 行之间
     return Math.max(1, Math.min(5, Math.max(newlines + 1, lines)));
   };
 
   useEffect(() => {
     if (isMessageEnd) {
       setAiSpeaking(false);
-      // const documentList =
-      //   currentDocumentList.map((doc) => ({
-      //     ...doc,
-      //     uuid: uuidv4(),
-      //   })) ?? [];
       setMessages((prev) => {
         return [
           ...prev,
@@ -438,10 +431,11 @@ export const ChatMessage: React.FC = () => {
               data: currentAIMessage,
               monitoring: currentMonitorMessage,
             },
-            refs: currentDocumentList,
+            refs: currentDocumentList
           },
         ];
       });
+      dispatch(clearDocumentList());
       dispatch(addDocumentList(currentDocumentList));
     }
   }, [isMessageEnd, currentDocumentList]);

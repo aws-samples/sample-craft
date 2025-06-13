@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAppSelector } from 'src/app/hooks';
 import { useTranslation } from 'react-i18next';
 import WordPreview from './viewers/WordViewer';
+import PDFPreview from './viewers/PDFViewer';
 
 const ReferenceDocuments: React.FC = () => {
   const { t } = useTranslation();
@@ -34,7 +35,11 @@ const ReferenceDocuments: React.FC = () => {
       </div>
       <div className="tab-content">
         <div className="document-preview">
-            <WordPreview fileKey={activeDocId} />
+            {(activeDocId.endsWith('.docx')||activeDocId.endsWith('.doc')) ? (
+                <WordPreview fileKey={activeDocId} />
+            ) : (
+                <PDFPreview fileKey={activeDocId} />
+            )}
           </div>
         </div></>
         ) : (

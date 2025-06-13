@@ -7,25 +7,26 @@ import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
-const WordPreview = ({ fileKey }: { fileKey: string }) => {
+const PDFPreview = ({ fileKey }: { fileKey: string }) => {
   const [pdfUrl, setPdfUrl] = useState('');
   const [error, setError] = useState('');
   const [numPages, setNumPages] = useState<number | null>(null);
+
   const fetchData = useAxiosRequest();
 
   useEffect(() => {
     const { bucket, key } = parseS3Uri(fileKey);
-    const wordPreview = async () => {
+    const PDFPreview = async () => {
       try {
-        const wordPreviewRes = await fetchData({
-          url: 'viewer/word',
+        const PDFPreviewRes = await fetchData({
+          url: 'viewer/pdf',
           method: 'post',
           data: {
             bucket: bucket,
             key: key,
           },
         });
-        setPdfUrl(wordPreviewRes);
+        setPdfUrl(PDFPreviewRes);
         setError('');
       } catch (err) {
         setError('File loading error');
@@ -33,7 +34,7 @@ const WordPreview = ({ fileKey }: { fileKey: string }) => {
       }
     };
     
-    wordPreview();
+    PDFPreview();
   }, [fileKey]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -69,4 +70,4 @@ const WordPreview = ({ fileKey }: { fileKey: string }) => {
   );
 };
 
-export default WordPreview;
+export default PDFPreview;

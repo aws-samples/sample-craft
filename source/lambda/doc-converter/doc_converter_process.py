@@ -53,7 +53,7 @@ class DocConverterResponse:
 class DocConverter:
     """API endpoint handlers"""
     @staticmethod
-    def word_2_pdf(event: Dict) -> Dict:
+    def word(event: Dict) -> Dict:
         """Handle POST /chat-history/sessions/{sessionId}/messages endpoint"""
         input_body = json.loads(event["body"])
         bucket = input_body.get("bucket")
@@ -95,6 +95,21 @@ class DocConverter:
             }, ExpiresIn=60*15)
 
             return DocConverterResponse.success(url)
+    
+    @staticmethod
+    def pdf(event: Dict) -> Dict:
+        """Handle POST /chat-history/sessions/{sessionId}/messages endpoint"""
+        input_body = json.loads(event["body"])
+        bucket = input_body.get("bucket")
+        file_key = input_body.get("key")
+        try:
+            url = s3.generate_presigned_url('get_object', Params={
+                'Bucket': bucket,
+                'Key': file_key
+            }, ExpiresIn=60*15)
+            return DocConverterResponse.success(url)
+        except Exception as e:
+            return DocConverterResponse.error(str(e))
 
 def lambda_handler(event: Dict, context: Any) -> Dict:
     """Routes API requests to appropriate handlers based on HTTP method and path"""
@@ -102,7 +117,8 @@ def lambda_handler(event: Dict, context: Any) -> Dict:
 
     routes = {
         # More RESTful paths
-        ("POST", "/converter/word-2-pdf"): DocConverter.word_2_pdf
+        ("POST", "/viewer/word"): DocConverter.word,
+        ("POST", "/viewer/pdf"): DocConverter.pdf
     }
 
     handler = routes.get((event["httpMethod"], event["resource"]))
