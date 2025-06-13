@@ -117,6 +117,10 @@ export class RootStack extends Stack {
       value: Fn.importValue(`${stackName}-frontend-portal-url`),
       description: "Web portal url",
     });
+    new CfnOutput(this, "Workspace URL", {
+      value: Fn.importValue(`${stackName}-frontend-portal-url`) + "/workspace",
+      description: "Web portal url",
+    });
     // new CfnOutput(this, "WebSocket Endpoint Address", {
     //   value: apiConstruct.wsEndpoint,
     // });

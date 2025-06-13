@@ -86,9 +86,9 @@ const UserChatList: React.FC<UserChatListProps> = ({ leftTopHeight }) => {
     <div className="chat-list" style={{ height: leftTopHeight }}>
       <div className="section-header">
         <h3>{t('recentChats')}</h3>
-        <span className="counter">
+        {/* <span className="counter">
           {chatList.filter((chat) => chat.isNew).length} {t('new')}
-        </span>
+        </span> */}
       </div>
       <div className="chat-items">
         {chatList.map((chat) => (
