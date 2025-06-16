@@ -121,9 +121,9 @@ RUN yum install -y --skip-broken \
     --setopt=install_weak_deps=False \
     --setopt=tsflags=nodocs
 
-# Copy and install LibreOffice from local file
-COPY LibreOffice_7.6.7.2_Linux_x86-64_rpm.tar.gz /tmp/
+# Download and install LibreOffice
 RUN cd /tmp && \
+    wget https://downloadarchive.documentfoundation.org/libreoffice/old/7.6.7.2/rpm/x86_64/LibreOffice_7.6.7.2_Linux_x86-64_rpm.tar.gz && \
     tar -xzf LibreOffice_7.6.7.2_Linux_x86-64_rpm.tar.gz && \
     cd LibreOffice_7.6*/RPMS && \
     for rpm in *.rpm; do rpm2cpio "$rpm" | cpio -idmv; done && \
