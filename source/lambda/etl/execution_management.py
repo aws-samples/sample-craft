@@ -134,7 +134,6 @@ class ExecutionManager:
             "indexId": execution["indexId"],
             "groupName": execution["groupName"],
             "tableItemId": execution["executionId"],
-            "offline": "true",
         }
 
         aws_resources.sfn_client.start_execution(stateMachineArn=Config.SFN_ARN, input=json.dumps(deletion_input))
@@ -217,7 +216,6 @@ class ExecutionManager:
                 "indexId": execution["indexId"],
                 "groupName": execution["groupName"],
                 "tableItemId": execution["executionId"],
-                "offline": "true",
             }
 
             aws_resources.sfn_client.start_execution(
@@ -234,7 +232,6 @@ class ExecutionManager:
                 "indexId": execution["indexId"],
                 "groupName": execution["groupName"],
                 "tableItemId": execution["executionId"],
-                "offline": "true",
             }
 
             aws_resources.sfn_client.start_execution(stateMachineArn=Config.SFN_ARN, input=json.dumps(deletion_input))
@@ -249,7 +246,6 @@ class ExecutionManager:
                 "indexId": execution["indexId"],
                 "groupName": execution["groupName"],
                 "tableItemId": execution["executionId"],
-                "offline": "true",
             }
 
             aws_resources.sfn_client.start_execution(

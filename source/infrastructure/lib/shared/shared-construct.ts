@@ -18,7 +18,6 @@ import * as s3 from "aws-cdk-lib/aws-s3";
 
 import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
-import { DynamoDBTable } from "./table";
 import { VpcConstruct } from "./vpc-construct";
 import { SecurityGroup, IVpc, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
@@ -30,30 +29,19 @@ export interface SharedConstructProps {
 
 export interface SharedConstructOutputs {
   iamHelper: IAMHelper;
-  chatbotTable: dynamodb.Table;
-  indexTable: dynamodb.Table;
-  modelTable: dynamodb.Table;
   resultBucket: s3.Bucket;
-
   vpc: IVpc;
   privateSubnets?: ISubnet[];
   securityGroups?: SecurityGroup[];
-  useOpensearchInVpc: boolean;
-  customDomainSecretArn: string;
 }
 
 export class SharedConstruct extends Construct implements SharedConstructOutputs {
   public iamHelper: IAMHelper;
-  public chatbotTable: dynamodb.Table;
-  public indexTable: dynamodb.Table;
-  public modelTable: dynamodb.Table;
   public resultBucket: s3.Bucket;
 
   public vpc: IVpc;
   public privateSubnets?: ISubnet[];
   public securityGroups?: SecurityGroup[];
-  public useOpensearchInVpc: boolean;
-  public customDomainSecretArn: string;
 
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
@@ -65,48 +53,14 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       config: props.config,
     });
 
-    const groupNameAttr = {
-      name: "groupName",
-      type: dynamodb.AttributeType.STRING,
-    }
-    const indexIdAttr = {
-      name: "indexId",
-      type: dynamodb.AttributeType.STRING,
-    }
-    const modelIdAttr = {
-      name: "modelId",
-      type: dynamodb.AttributeType.STRING,
-    }
-    const chatbotIdAttr = {
-      name: "chatbotId",
-      type: dynamodb.AttributeType.STRING,
-    }
-
-    const chatbotTable = new DynamoDBTable(this, "Chatbot", groupNameAttr, chatbotIdAttr, true).table;
-    const indexTable = new DynamoDBTable(this, "Index", groupNameAttr, indexIdAttr).table;
-    const modelTable = new DynamoDBTable(this, "Model", groupNameAttr, modelIdAttr).table;
-
     const resultBucket = new s3.Bucket(this, "ai-customer-service-result-bucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
-
-
-    if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.useCustomDomain) {
-      this.useOpensearchInVpc = false;
-      this.customDomainSecretArn = props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.customDomainSecretArn;
-    } else {
-      this.useOpensearchInVpc = true;
-      this.customDomainSecretArn = "";
-    }
 
     this.vpc = vpcConstruct.vpc;
     this.privateSubnets = vpcConstruct.privateSubnets;
     this.securityGroups = vpcConstruct.securityGroups;
     this.iamHelper = iamHelper;
-    this.chatbotTable = chatbotTable;
-    this.indexTable = indexTable;
-    this.modelTable = modelTable;
     this.resultBucket = resultBucket;
   }
 }
-

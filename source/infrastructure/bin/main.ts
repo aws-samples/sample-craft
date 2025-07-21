@@ -17,16 +17,9 @@ import * as dotenv from "dotenv";
 import { getConfig } from "./config";
 import { SystemConfig } from "../lib/shared/types";
 import { SharedConstruct, SharedConstructOutputs } from "../lib/shared/shared-construct";
-import { ApiConstruct, ApiConstructOutputs } from "../lib/api/api-stack";
 import { ModelConstruct, ModelConstructOutputs } from "../lib/model/model-construct";
-import { KnowledgeBaseStack, KnowledgeBaseStackOutputs } from "../lib/knowledge-base/knowledge-base-stack";
-import { ChatStack, ChatStackOutputs } from "../lib/chat/chat-stack";
-import { WorkspaceStack } from "../lib/workspace/workspace-stack";
-import { UIStack } from "../lib/ui/ui-stack";
+import { KnowledgeBaseStack, KnowledgeBaseStackOutputs } from "../lib/knowledge-base/kb-construct";
 import { Fn } from "aws-cdk-lib";
-import * as cr from "aws-cdk-lib/custom-resources";
-import * as iam from "aws-cdk-lib/aws-iam";
-import * as cdk from "aws-cdk-lib";
 
 dotenv.config();
 
@@ -44,11 +37,8 @@ export interface RootStackProps extends StackProps {
 
 export class RootStack extends Stack {
   public sharedConstruct: SharedConstructOutputs;
-  public apiConstruct: ApiConstructOutputs;
   public modelConstruct: ModelConstructOutputs;
   public config: SystemConfig;
-  public chatStack: ChatStack | undefined;
-  // private isChinaRegion: boolean;
 
   constructor(scope: Construct, id: string, props: RootStackProps) {
     super(scope, id, props);
@@ -60,7 +50,6 @@ export class RootStack extends Stack {
 
     let knowledgeBaseStack: KnowledgeBaseStack = {} as KnowledgeBaseStack;
     let knowledgeBaseStackOutputs: KnowledgeBaseStackOutputs = {} as KnowledgeBaseStackOutputs;
-    let chatStackOutputs: ChatStackOutputs = {} as ChatStackOutputs;
     const isChinaRegion = props.env?.region.startsWith('cn-');
 
     const modelConstruct = new ModelConstruct(this, "model-construct", {
@@ -69,69 +58,22 @@ export class RootStack extends Stack {
     });
     modelConstruct.node.addDependency(sharedConstruct);
 
-    if (props.config.knowledgeBase.enabled && props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
-      knowledgeBaseStack = new KnowledgeBaseStack(this, "knowledge-base-stack", {
-        config: props.config,
-        sharedConstructOutputs: sharedConstruct,
-        modelConstructOutputs: modelConstruct,
-        uiPortalBucketName: Fn.importValue(`${stackName}-frontend-portal-bucket-name`),
-      });
-      knowledgeBaseStack.node.addDependency(sharedConstruct);
-      knowledgeBaseStack.node.addDependency(modelConstruct);
-      knowledgeBaseStackOutputs = knowledgeBaseStack;
-    }
-
-    // if (props.config.chat.enabled) {
-      this.chatStack = new ChatStack(this, "chat-stack", {
-        config: props.config,
-        sharedConstructOutputs: sharedConstruct,
-        modelConstructOutputs: modelConstruct,
-        domainEndpoint: knowledgeBaseStackOutputs.aosDomainEndpoint,
-      });
-      chatStackOutputs = this.chatStack;
-      new CfnOutput(this, "ALB Endpoint Address", {
-        value: this.chatStack.albDomainEndpoint,
-      });
-
-    // }
-    
-    const apiConstruct = new ApiConstruct(this, "api-construct", {
+    knowledgeBaseStack = new KnowledgeBaseStack(this, "kb-construct", {
       config: props.config,
       sharedConstructOutputs: sharedConstruct,
       modelConstructOutputs: modelConstruct,
-      knowledgeBaseStackOutputs: knowledgeBaseStackOutputs,
-      chatStackOutputs: chatStackOutputs
     });
-    apiConstruct.node.addDependency(sharedConstruct);
-    apiConstruct.node.addDependency(modelConstruct);
+    knowledgeBaseStack.node.addDependency(sharedConstruct);
+    knowledgeBaseStack.node.addDependency(modelConstruct);
+    knowledgeBaseStackOutputs = knowledgeBaseStack;
 
     this.sharedConstruct = sharedConstruct;
-    this.apiConstruct = apiConstruct;
     this.modelConstruct = modelConstruct;
     this.config = props.config;
 
-    new CfnOutput(this, "API Endpoint Address", {
-      value: apiConstruct.apiEndpoint,
-    });
-    new CfnOutput(this, "Web Portal URL", {
-      value: Fn.importValue(`${stackName}-frontend-portal-url`),
-      description: "Web portal url",
-    });
-    new CfnOutput(this, "Workspace URL", {
-      value: Fn.importValue(`${stackName}-frontend-portal-url`) + "/workspace",
-      description: "Web portal url",
-    });
-    // new CfnOutput(this, "WebSocket Endpoint Address", {
-    //   value: apiConstruct.wsEndpoint,
+    // new CfnOutput(this, "API Endpoint Address", {
+    //   value: apiConstruct.apiEndpoint,
     // });
-    if (!isChinaRegion) {
-      new CfnOutput(this, "OIDC Client ID", {
-        value: Fn.importValue(`${stackName}-frontend-oidc-client-id`) || '',
-      });
-      new CfnOutput(this, "User Pool ID", {
-        value: Fn.importValue(`${stackName}-frontend-user-pool-id`) || '',
-      });
-    }
   }
 }
 
@@ -150,67 +92,10 @@ if(config.prefix && config.prefix.trim().length > 0){
   stackName = `${config.prefix}-ai-customer-service`;
 }
 
-const uiStack = new UIStack(app, `${stackName}-frontend`, {
-  config: config,
-  env: devEnv,
-  suppressTemplateIndentation: true,
-});
-
-const rootStack = new RootStack(app, stackName, {
+new RootStack(app, stackName, {
   config,
   env: devEnv, 
   suppressTemplateIndentation: true,
 });
-
-rootStack.node.addDependency(uiStack);
-
-uiStack.updateCloudFrontFunction.addToRolePolicy(new iam.PolicyStatement({
-  effect: iam.Effect.ALLOW,
-  actions: [
-    'cloudfront:GetDistribution',
-    'cloudfront:GetDistributionConfig',
-    'cloudfront:UpdateDistribution',
-    'cloudformation:DescribeStacks',
-    'logs:CreateLogGroup',
-    'logs:CreateLogStream',
-    'logs:PutLogEvents'
-  ],
-  resources: ['*']
-}));
-
-const workspaceStack = new WorkspaceStack(app, `${stackName}-workspace`, {
-  env: devEnv,
-  config: config,
-  sharedConstructOutputs: rootStack.sharedConstruct,
-  apiConstructOutputs: rootStack.apiConstruct,
-  modelConstructOutputs: rootStack.modelConstruct,
-  portalBucketName: Fn.importValue(`${stackName}-frontend-portal-bucket-name`),
-  clientPortalBucketName: Fn.importValue(`${stackName}-frontend-client-portal-bucket-name`),
-  portalUrl: Fn.importValue(`${stackName}-frontend-portal-url`),
-  clientPortalUrl: Fn.importValue(`${stackName}-frontend-client-portal-url`),
-  suppressTemplateIndentation: true,
-  ...(!(devEnv?.region.startsWith('cn-')) && {
-    userPoolId: Fn.importValue(`${stackName}-frontend-user-pool-id`),
-    oidcClientId: Fn.importValue(`${stackName}-frontend-oidc-client-id`),
-    oidcIssuer: Fn.importValue(`${stackName}-frontend-oidc-issuer`),
-    oidcLogoutUrl: Fn.importValue(`${stackName}-frontend-oidc-logout-url`),
-    oidcRegion: Fn.importValue(`${stackName}-frontend-oidc-region`),
-    oidcDomain: Fn.importValue(`${stackName}-frontend-oidc-domain`)
-  }),
-  ...(config.chat.enabled && {
-     albUrl: rootStack.chatStack?.albDomainEndpoint,
-  })
-});
-
-new cdk.CustomResource(workspaceStack, 'WatchALBEndpoint', {
-  serviceToken: uiStack.updateCloudFrontFunction.functionArn,
-  properties: {
-    ServiceToken: uiStack.updateCloudFrontFunction.functionArn,
-    StackName: rootStack.stackName
-  }
-});
-
-workspaceStack.addDependency(rootStack);
-workspaceStack.addDependency(uiStack);
 
 app.synth();

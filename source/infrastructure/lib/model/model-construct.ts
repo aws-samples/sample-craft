@@ -11,7 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Aws, NestedStack } from "aws-cdk-lib";
+import { Aws } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as sagemaker from "aws-cdk-lib/aws-sagemaker";
 import { Construct } from "constructs";
@@ -59,7 +59,7 @@ interface DeploySagemakerEndpointResponse {
   readonly model?: sagemaker.CfnModel
 }
 
-export class ModelConstruct extends NestedStack implements ModelConstructOutputs {
+export class ModelConstruct extends Construct implements ModelConstructOutputs {
   public defaultEmbeddingModelName: string = "";
   public defaultKnowledgeBaseModelName: string = "";
   modelAccount = Aws.ACCOUNT_ID;

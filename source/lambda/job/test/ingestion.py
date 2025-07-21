@@ -41,7 +41,6 @@ args = {
     "ETL_MODEL_ENDPOINT": "etl-endpoint",
     "REGION": "us-west-2",
     "RES_BUCKET": "llm-bot-dev-etlstacknestedst-llmbotgluelib973c0df4-obmcpq1xv1pe",
-    "OFFLINE": "true",
     "QA_ENHANCEMENT": "false",
     "BATCH_INDICE": "0",
     "ETL_OBJECT_TABLE": "llm-bot-dev-etlstackNestedStacketlstackNestedStackResource5A19705C-1IOMQY29GJHU3-ProcessedObjects1A59B3C3-4WN1FHIM4ZMI",
@@ -68,7 +67,6 @@ embeddingModelEndpointList = args["EMBEDDING_MODEL_ENDPOINT"].split(",")
 etlModelEndpoint = args["ETL_MODEL_ENDPOINT"]
 region = args["REGION"]
 res_bucket = args["RES_BUCKET"]
-offline = args["OFFLINE"]
 qa_enhancement = args["QA_ENHANCEMENT"]
 # TODO, pass the bucket and prefix need to handle in current job directly
 batchIndice = args["BATCH_INDICE"]
@@ -381,89 +379,84 @@ def aos_injection(
 # Main function to be called by Glue job script
 def main(batchIndice):
     logger.info("Starting Glue job with passing arguments: %s", args)
-    # Check if offline mode
-    if offline == "true" or offline == "false":
-        logger.info("Running in offline mode with consideration for large file size...")
-        for file_type, file_content, kwargs in iterate_s3_files(
-            s3_bucket, s3_prefix, batchIndice
-        ):
-            try:
-                if file_type == "json":
-                    kwargs["embeddings_model_info_list"] = embeddings_model_info_list
-                    kwargs["aos_index"] = aos_index
-                    kwargs["aosEndpoint"] = aosEndpoint
-                    kwargs["region"] = region
-                    kwargs["awsauth"] = awsauth
-                    kwargs["content_type"] = content_type
-                    kwargs["max_os_docs_per_put"] = MAX_OS_DOCS_PER_PUT
-                res = cb_process_object(s3, file_type, file_content, **kwargs)
-                for document in res:
-                    save_content_to_s3(
-                        s3, document, res_bucket, SplittingType.SEMANTIC.value
-                    )
-
-                # the res is unified to list[Document] type, store the res to S3 for observation
-                # TODO, parse the metadata to embed with different index
-                if res:
-                    logger.info("Result: %s", res)
-                if file_type == "csv":
-                    # CSV page document has been split into chunk, no more spliting is needed
-                    aos_injection(
-                        res,
-                        embeddingModelEndpointList,
-                        aosEndpoint,
-                        aos_index,
-                        file_type,
-                        gen_chunk=False,
-                    )
-                elif file_type in ["pdf", "txt", "doc", "md", "html", "json", "jsonl"]:
-                    aos_injection(
-                        res,
-                        embeddingModelEndpointList,
-                        aosEndpoint,
-                        aos_index,
-                        file_type,
-                    )
-                if qa_enhancement == "true":
-                    enhanced_prompt_list = []
-                    # iterate the document to get the QA pairs
-                    for document in res:
-                        # Define your prompt or else it uses default prompt
-                        prompt = ""
-                        # Make sure the document is Document object
-                        logger.info(
-                            "Enhancing document type: {} and content: {}".format(
-                                type(document), document
-                            )
-                        )
-                        ewb = EnhanceWithBedrock(prompt, document)
-                        # This is should be optional for the user to choose the chunk size
-                        document_list = ewb.SplitDocumentByTokenNum(
-                            document, ENHANCE_CHUNK_SIZE
-                        )
-                        for document in document_list:
-                            enhanced_prompt_list = ewb.EnhanceWithClaude(
-                                prompt, document, enhanced_prompt_list
-                            )
-                        logger.info(f"Enhanced prompt: {enhanced_prompt_list}")
-
-                    if len(enhanced_prompt_list) > 0:
-                        aos_injection(
-                            enhanced_prompt_list,
-                            embeddingModelEndpointList,
-                            aosEndpoint,
-                            aos_index,
-                            "qa",
-                        )
-
-            except Exception as e:
-                logger.error(
-                    "Error processing object %s: %s",
-                    kwargs["bucket"] + "/" + kwargs["key"],
-                    e,
+    for file_type, file_content, kwargs in iterate_s3_files(
+        s3_bucket, s3_prefix, batchIndice
+    ):
+        try:
+            if file_type == "json":
+                kwargs["embeddings_model_info_list"] = embeddings_model_info_list
+                kwargs["aos_index"] = aos_index
+                kwargs["aosEndpoint"] = aosEndpoint
+                kwargs["region"] = region
+                kwargs["awsauth"] = awsauth
+                kwargs["content_type"] = content_type
+                kwargs["max_os_docs_per_put"] = MAX_OS_DOCS_PER_PUT
+            res = cb_process_object(s3, file_type, file_content, **kwargs)
+            for document in res:
+                save_content_to_s3(
+                    s3, document, res_bucket, SplittingType.SEMANTIC.value
                 )
-    else:
-        logger.info("Running in online mode, assume file number is small...")
+
+            # the res is unified to list[Document] type, store the res to S3 for observation
+            # TODO, parse the metadata to embed with different index
+            if res:
+                logger.info("Result: %s", res)
+            if file_type == "csv":
+                # CSV page document has been split into chunk, no more spliting is needed
+                aos_injection(
+                    res,
+                    embeddingModelEndpointList,
+                    aosEndpoint,
+                    aos_index,
+                    file_type,
+                    gen_chunk=False,
+                )
+            elif file_type in ["pdf", "txt", "doc", "md", "html", "json", "jsonl"]:
+                aos_injection(
+                    res,
+                    embeddingModelEndpointList,
+                    aosEndpoint,
+                    aos_index,
+                    file_type,
+                )
+            if qa_enhancement == "true":
+                enhanced_prompt_list = []
+                # iterate the document to get the QA pairs
+                for document in res:
+                    # Define your prompt or else it uses default prompt
+                    prompt = ""
+                    # Make sure the document is Document object
+                    logger.info(
+                        "Enhancing document type: {} and content: {}".format(
+                            type(document), document
+                        )
+                    )
+                    ewb = EnhanceWithBedrock(prompt, document)
+                    # This is should be optional for the user to choose the chunk size
+                    document_list = ewb.SplitDocumentByTokenNum(
+                        document, ENHANCE_CHUNK_SIZE
+                    )
+                    for document in document_list:
+                        enhanced_prompt_list = ewb.EnhanceWithClaude(
+                            prompt, document, enhanced_prompt_list
+                        )
+                    logger.info(f"Enhanced prompt: {enhanced_prompt_list}")
+
+                if len(enhanced_prompt_list) > 0:
+                    aos_injection(
+                        enhanced_prompt_list,
+                        embeddingModelEndpointList,
+                        aosEndpoint,
+                        aos_index,
+                        "qa",
+                    )
+
+        except Exception as e:
+            logger.error(
+                "Error processing object %s: %s",
+                kwargs["bucket"] + "/" + kwargs["key"],
+                e,
+            )
     return "finish"
 
 

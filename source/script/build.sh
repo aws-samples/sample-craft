@@ -31,80 +31,21 @@ if [ "$deploy_region" != "cn-north-1" ] && [ "$deploy_region" != "cn-northwest-1
     aws ecr-public get-login-password --region $ecr_login_region | docker login --username AWS --password-stdin public.ecr.aws
 fi
 
-build_lambda_asset() {
-    echo "Building Lambda Asset"
-    cd script
-    bash build-s3-dist.sh
-    cd - > /dev/null
-}
-
-build_frontend() {
-    echo "Building Frontend"
-    cd portal
-    rm -rf node_modules package-lock.json
-    npm install && npm run build
-    cd - > /dev/null
-}
-
-build_client_frontend() {
-    echo "Building Frontend"
-    cd cs-portal
-    rm -rf node_modules package-lock.json
-    npm install && npm run build
-    cd - > /dev/null
-}
-
-build_etl_package() {
-    echo "Building ETL Package"
-    cd lambda/job
-    sh build_whl.sh
-    cd - > /dev/null
-}
-
 prepare_etl_model() {
     echo "Preparing ETL Model"
     cd model/etl/code
     sh model.sh $ecr_repository $ecr_image_tag $deploy_region
-    cd - > /dev/null
+    cd ../../..
     pwd
 }
 
-prepare_online_model() {
-    echo "Preparing Online Model"
-    cd model
-    if [ "$deploy_region" == "cn-north-1" ] || [ "$deploy_region" == "cn-northwest-1" ]; then
-        bash prepare_model_cn.sh -s $model_assets_bucket
-    else
-        bash prepare_model.sh -s $model_assets_bucket
-    fi
-    cd - > /dev/null
-}
 
 modules_prepared=""
 cd ..
 
-build_lambda_asset
-modules_prepared="${modules_prepared}Lambda Deployment, "
-
-if $ui_enabled; then
-    build_frontend
-    build_client_frontend
-    modules_prepared="${modules_prepared}Frontend, "
-fi
-
-if $knowledge_base_enabled && $knowledge_base_intelliagent_enabled; then
-    build_etl_package
-    modules_prepared="${modules_prepared}ETL Package, "
-fi
-
 if $knowledge_base_enabled && $knowledge_base_intelliagent_enabled && $knowledge_base_models_enabled; then
     prepare_etl_model
     modules_prepared="${modules_prepared}ETL Model, "
-fi
-
-if $knowledge_base_enabled && $knowledge_base_intelliagent_enabled && $opensearch_enabled && [ "$embedding_model_provider" != "bedrock" ]; then
-    prepare_online_model
-    modules_prepared="${modules_prepared}Online Model, "
 fi
 
 # Remove the trailing comma and space
