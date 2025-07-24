@@ -11,17 +11,19 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Duration, StackProps } from "aws-cdk-lib";
+import { Duration, StackProps, RemovalPolicy } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as ecs from "aws-cdk-lib/aws-ecs";
-import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import * as ecr from "aws-cdk-lib/aws-ecr";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets";
+import { DockerImageCode, DockerImageFunction } from "aws-cdk-lib/aws-lambda";
+import { Architecture } from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import { Construct } from "constructs";
 import { DynamoDBTable } from "../shared/table";
-import { RemovalPolicy } from "aws-cdk-lib";
+
 import { IAMHelper } from "../shared/iam-helper";
 
 import { SystemConfig } from "../shared/types";
@@ -37,8 +39,9 @@ interface KnowledgeBaseStackProps extends StackProps {
 }
 
 export interface KnowledgeBaseStackOutputs {
-  readonly ecsService: ecs.FargateService;
-  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
+  readonly lambdaFunction: DockerImageFunction;
+  readonly apiGateway: apigateway.RestApi;
+  readonly apiKey: apigateway.ApiKey;
   readonly executionTableName: string;
   readonly etlObjTableName: string;
   readonly etlObjIndexName: string;
@@ -48,8 +51,9 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
   public etlObjIndexName: string = "ExecutionIdIndex";
   public executionTableName: string = "";
   public etlObjTableName: string = "";
-  public ecsService: ecs.FargateService;
-  public loadBalancer: elbv2.ApplicationLoadBalancer;
+  public lambdaFunction: DockerImageFunction;
+  public apiGateway: apigateway.RestApi;
+  public apiKey: apigateway.ApiKey;
 
   private iamHelper: IAMHelper;
   private glueResultBucket: s3.Bucket;
@@ -68,9 +72,12 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     this.etlObjTableName = createKnowledgeBaseTablesAndPoliciesResult.etlObjTable.tableName;
     this.dynamodbStatement = createKnowledgeBaseTablesAndPoliciesResult.dynamodbStatement;
 
-    const ecsResult = this.createKnowledgeBaseECS(props);
-    this.ecsService = ecsResult.service;
-    this.loadBalancer = ecsResult.loadBalancer;
+    this.lambdaFunction = this.createKnowledgeBaseLambda(props);
+    
+    // Create API Gateway and API Key
+    const { api, apiKey } = this.createApiGateway(this.lambdaFunction);
+    this.apiGateway = api;
+    this.apiKey = apiKey;
 
   }
 
@@ -115,39 +122,80 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
   }
 
 
-  private createKnowledgeBaseECS(props: any) {
+  private createApiGateway(lambdaFunction: DockerImageFunction) {
+    // Create REST API
+    const api = new apigateway.RestApi(this, "ETLApi", {
+      restApiName: "Knowledge Base ETL API",
+      description: "API for Knowledge Base ETL operations",
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+    });
+    
+    // Create API usage plan
+    const usagePlan = api.addUsagePlan("ETLUsagePlan", {
+      name: "ETL API Usage Plan",
+      throttle: {
+        rateLimit: 10,
+        burstLimit: 20,
+      },
+      quota: {
+        limit: 1000,
+        period: apigateway.Period.DAY,
+      },
+    });
+    
+    // Create API key
+    const apiKey = new apigateway.ApiKey(this, "ETLApiKey", {
+      apiKeyName: "etl-api-key",
+      description: "API Key for ETL API",
+      enabled: true,
+    });
+    
+    // Add API key to usage plan
+    usagePlan.addApiKey(apiKey);
+    usagePlan.addApiStage({
+      stage: api.deploymentStage,
+    });
+    
+    // Create Lambda integration
+    const lambdaIntegration = new apigateway.LambdaIntegration(lambdaFunction, {
+      proxy: true,
+    });
+    
+    // Create API resources and methods
+    const etlResource = api.root.addResource("etl");
+    
+    // POST /etl - Process ETL job
+    etlResource.addMethod("POST", lambdaIntegration, {
+      apiKeyRequired: true,
+    });
+    
+    // GET /etl - Get ETL status
+    etlResource.addMethod("GET", lambdaIntegration, {
+      apiKeyRequired: true,
+    });
+    
+    return { api, apiKey };
+  }
+  
+  private createKnowledgeBaseLambda(props: any): DockerImageFunction {
     const deployRegion = props.config.deployRegion;
-
-    // Create VPC for ECS
-    const vpc = props.sharedConstructOutputs.vpc;
-
-    // Create ECS Cluster
-    const cluster = new ecs.Cluster(this, "ETLCluster", {
-      vpc: vpc,
-      clusterName: "knowledge-base-etl-cluster",
-    });
-
-    // Create ECR Repository
-    const repository = new ecr.Repository(this, "ETLRepository", {
-      repositoryName: "knowledge-base-etl",
-      removalPolicy: RemovalPolicy.DESTROY,
-    });
 
     // Create CloudWatch Log Group
     const logGroup = new logs.LogGroup(this, "ETLLogGroup", {
-      logGroupName: "/ecs/knowledge-base-etl",
+      logGroupName: "/aws/lambda/knowledge-base-etl",
       removalPolicy: RemovalPolicy.DESTROY,
       retention: logs.RetentionDays.ONE_WEEK,
     });
 
-
-    // Create ECS Task Role
-    const taskRole = new iam.Role(this, "ETLTaskRole", {
-      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-      maxSessionDuration: Duration.hours(12),
+    // Create Lambda Role
+    const lambdaRole = new iam.Role(this, "ETLLambdaRole", {
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
     
-    taskRole.addToPrincipalPolicy(
+    lambdaRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: [
           "es:ESHttpGet",
@@ -161,109 +209,37 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         resources: ["*"],
       }),
     );
-    taskRole.addToPolicy(this.iamHelper.endpointStatement);
-    taskRole.addToPolicy(this.iamHelper.s3Statement);
-    taskRole.addToPolicy(this.iamHelper.logStatement);
-    taskRole.addToPolicy(this.dynamodbStatement);
-    taskRole.addToPolicy(this.iamHelper.dynamodbStatement);
-    taskRole.addToPolicy(this.iamHelper.secretsManagerStatement);
-
-    // Create ECS Task Execution Role
-    const executionRole = new iam.Role(this, "ETLExecutionRole", {
-      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AmazonECSTaskExecutionRolePolicy"),
-      ],
-    });
     
-    executionRole.addToPolicy(
-      new iam.PolicyStatement({
-        actions: [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-        ],
-        resources: ["*"],
-      })
+    // Add necessary policies
+    lambdaRole.addToPolicy(this.iamHelper.endpointStatement);
+    lambdaRole.addToPolicy(this.iamHelper.s3Statement);
+    lambdaRole.addToPolicy(this.iamHelper.logStatement);
+    lambdaRole.addToPolicy(this.dynamodbStatement);
+    lambdaRole.addToPolicy(this.iamHelper.dynamodbStatement);
+    lambdaRole.addToPolicy(this.iamHelper.secretsManagerStatement);
+    
+    // Add Lambda basic execution role
+    lambdaRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
     );
 
-    // Create Task Definition
-    const taskDefinition = new ecs.FargateTaskDefinition(this, "ETLTaskDefinition", {
-      memoryLimitMiB: 4096,
-      cpu: 2048,
-      taskRole: taskRole,
-      executionRole: executionRole,
-    });
-
-    // Add container to task definition
-    const container = taskDefinition.addContainer("ETLContainer", {
-      image: ecs.ContainerImage.fromEcrRepository(repository, "latest"),
-      logging: ecs.LogDrivers.awsLogs({
-        streamPrefix: "etl",
-        logGroup: logGroup,
-      }),
+    // Create Lambda Function using Docker container
+    const lambdaFunction = new DockerImageFunction(this, "ETLLambdaFunction", {
+      code: DockerImageCode.fromImageAsset("../lambda/job"),
+      architecture: Architecture.X86_64,
+      role: lambdaRole,
+      timeout: Duration.minutes(15),
+      memorySize: 1024,
       environment: {
-        AWS_REGION: deployRegion,
+        DEPLOY_REGION: deployRegion,
         ETL_MODEL_ENDPOINT: props.modelConstructOutputs.defaultKnowledgeBaseModelName,
         RES_BUCKET: this.glueResultBucket.bucketName,
         ETL_OBJECT_TABLE: this.etlObjTableName || "-",
-        BEDROCK_REGION: props.config.chat.bedrockRegion || deployRegion,
-        CHATBOT_ID: "default",
-        INDEX_ID: "default",
-        GROUP_NAME: "default",
+        BEDROCK_REGION: deployRegion,
       },
+      logGroup: logGroup,
     });
 
-    container.addPortMappings({
-      containerPort: 8000,
-      protocol: ecs.Protocol.TCP,
-    });
-
-    // Create ECS Service
-    const service = new ecs.FargateService(this, "ETLService", {
-      cluster: cluster,
-      taskDefinition: taskDefinition,
-      desiredCount: 1,
-      assignPublicIp: false,
-      vpcSubnets: {
-        subnets: props.sharedConstructOutputs.privateSubnets,
-      },
-      securityGroups: props.sharedConstructOutputs.securityGroups,
-    });
-
-    // Create Application Load Balancer
-    const loadBalancer = new elbv2.ApplicationLoadBalancer(this, "ETLLoadBalancer", {
-      vpc: vpc,
-      internetFacing: false,
-      vpcSubnets: {
-        subnets: props.sharedConstructOutputs.privateSubnets,
-      },
-      securityGroup: props.sharedConstructOutputs.securityGroups[0],
-    });
-
-    // Create Target Group
-    const targetGroup = new elbv2.ApplicationTargetGroup(this, "ETLTargetGroup", {
-      port: 8000,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      vpc: vpc,
-      targetType: elbv2.TargetType.IP,
-      healthCheck: {
-        path: "/health",
-        healthyHttpCodes: "200",
-      },
-    });
-
-    // Add service to target group
-    service.attachToApplicationTargetGroup(targetGroup);
-
-    // Create Listener
-    const listener = loadBalancer.addListener("ETLListener", {
-      port: 80,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      defaultTargetGroups: [targetGroup],
-    });
-
-    return { service, loadBalancer };
+    return lambdaFunction;
   }
 }

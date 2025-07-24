@@ -10,11 +10,11 @@ import nltk
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import OpenSearchVectorSearch
-from llm_bot_dep import sm_utils
-from llm_bot_dep.constant import SplittingType
-from llm_bot_dep.enhance_utils import EnhanceWithBedrock
-from llm_bot_dep.loaders.auto import cb_process_object
-from llm_bot_dep.storage_utils import save_content_to_s3
+from utils import sm_utils
+from utils.constant import SplittingType
+from utils.enhance_utils import EnhanceWithBedrock
+from loaders.auto import cb_process_object
+from utils.storage_utils import save_content_to_s3
 from opensearchpy import RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 from tenacity import retry, stop_after_attempt, wait_exponential

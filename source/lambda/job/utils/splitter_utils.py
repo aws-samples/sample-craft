@@ -7,8 +7,8 @@ from typing import Any, List
 import boto3
 from langchain.docstore.document import Document
 from langchain.text_splitter import TextSplitter
-from llm_bot_dep.constant import FigureNode, SplittingType
-from llm_bot_dep.storage_utils import save_content_to_s3
+from utils.constant import FigureNode, SplittingType
+from utils.storage_utils import save_content_to_s3
 from lxml import etree
 
 s3 = boto3.client("s3")

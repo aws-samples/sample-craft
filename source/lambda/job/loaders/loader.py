@@ -1,16 +1,16 @@
 from typing import Any, Callable, Dict, List, Optional
 
 from langchain.docstore.document import Document
-from csv import process_csv
-from docx import process_doc
-from html import process_html
-from image import process_image
-from json import process_json
-from jsonl import process_jsonl
-from markdown import process_md
-from pdf import process_pdf
-from text import process_text
-from xlsx import process_xlsx
+from .csv import process_csv
+from .docx import process_doc
+from .html import process_html
+from .image import process_image
+from .json import process_json
+from .jsonl import process_jsonl
+from .markdown import process_md
+from .pdf import process_pdf
+from .text import process_text
+from .xlsx import process_xlsx
 from schemas.processing_parameters import ProcessingParameters
 from utils.splitter_utils import MarkdownHeaderTextSplitter
 

@@ -30,15 +30,6 @@ export interface SystemConfig {
       };
     };
   };
-  chat: {
-    enabled: boolean;
-    bedrockRegion: string;
-    bedrockAk?: string;
-    bedrockSk?: string;
-    amazonConnect: {
-      enabled: boolean;
-    }
-  };
   model: {
     embeddingsModels: {
       provider: ModelProvider;
@@ -66,20 +57,6 @@ export interface SystemConfig {
       modelAssetsBucket: string;
     };
   }
-  ui: {
-    enabled: boolean;
-  };
-  federatedAuth: {
-    enabled: boolean;
-    provider: {
-      cognito: {
-        enabled: boolean;
-      };
-      // authing: {
-      //   enabled: boolean;
-      // };
-    }
-  };
 }
 
 export enum SupportedRegion {

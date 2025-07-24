@@ -39,15 +39,6 @@ export function getConfig(): SystemConfig {
         },
       },
     },
-    chat: {
-      enabled: true,
-      bedrockRegion: "us-east-1",
-      bedrockAk: "",
-      bedrockSk: "",
-      amazonConnect: {
-        enabled: true
-      }
-    },
     model: {
       embeddingsModels: [
         {
@@ -78,20 +69,6 @@ export function getConfig(): SystemConfig {
       ],
       modelConfig: {
         modelAssetsBucket: custom_assets_bucket,
-      },
-    },
-    ui: {
-      enabled: true,
-    },
-    federatedAuth: {
-      enabled: true,
-      provider: {
-        cognito: {
-          enabled: true,
-        },
-        // authing: {
-        //   enabled: false,
-        // },
       },
     },
   };

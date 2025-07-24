@@ -151,20 +151,11 @@ async function getAwsAccountAndRegion() {
       options.enableIntelliAgentKbModel = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled;
       options.knowledgeBaseModelEcrRepository = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrRepository;
       options.knowledgeBaseModelEcrImageTag = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrImageTag;
-      options.enableChat = config.chat.enabled;
-      options.bedrockRegion = config.chat.bedrockRegion;
-      options.enableConnect = config.chat.amazonConnect.enabled;
       options.defaultEmbedding = config.model.embeddingsModels && config.model.embeddingsModels.length > 0
         ? config.model.embeddingsModels[0].id
         : embeddingModels[0].id;
       options.defaultLlm = config.model.llms.find((m) => m.provider === "Bedrock")?.id;
       options.sagemakerModelS3Bucket = config.model.modelConfig.modelAssetsBucket;
-      options.enableUI = config.ui.enabled;
-      options.cognitoFederationEnabled = config.federatedAuth.enabled;
-      options.cognitoFederationProvider = config.federatedAuth.provider.cognito.enabled
-        ? "cognito"
-        : "authing";
-
     }
     try {
       await processCreateOptions(options);
@@ -415,38 +406,6 @@ async function processCreateOptions(options: any): Promise<void> {
       },
     },
     {
-      type: "confirm",
-      name: "enableChat",
-      message: "Do you want to enable Chat?",
-      initial: options.enableChat ?? true,
-    },
-    {
-      type: "select",
-      name: "bedrockRegion",
-      hint: "ENTER to confirm selection",
-      message: "Which region would you like to use Bedrock?",
-      choices: supportedBedrockRegions.map((region) => ({ name: region, value: region })),
-      initial: options.bedrockRegion,
-      validate(value: string) {
-        if ((this as any).state.answers.bedrockRegion) {
-          return value ? true : "Select a Bedrock Region";
-        }
-        return true;
-      },
-      skip(): boolean {
-        return (deployInChina);
-      },
-    },
-    {
-      type: "confirm",
-      name: "enableConnect",
-      message: "Do you want to integrate it with Amazon Connect?",
-      initial: options.enableConnect ?? false,
-      skip(): boolean {
-        return (!(this as any).state.answers.enableChat || deployInChina);
-      },
-    },
-    {
       type: "input",
       name: "sagemakerModelS3Bucket",
       message: "Please enter the name of the S3 Bucket for the sagemaker models assets",
@@ -476,57 +435,8 @@ async function processCreateOptions(options: any): Promise<void> {
         return (!deployInChina || !(this as any).state.answers.useSageMakerVlm);
       },
     },
-    {
-      type: "confirm",
-      name: "enableUI",
-      message: "Do you want to create a UI for the chatbot",
-      initial: options.enableUI ?? true,
-    },
   ];
   const answers: any = await prompt(questions);
-
-  const advancedSettingsPrompts = [
-    {
-      type: "confirm",
-      name: "enableFederatedAuth",
-      message: "Do you want to enable Federated Authentication?",
-      initial: options.cognitoFederationEnabled ?? true,
-      skip(): boolean {
-        return !answers.enableUI;
-      }
-    },
-    {
-      type: "select",
-      name: "federatedAuthProvider",
-      message: "Select a Federated Authentication Provider",
-      choices: [
-        { message: "Cognito", name: "cognito" },
-        // { message: "Authing", name: "authing" },
-      ],
-      initial: options.cognitoFederationProvider ?? "cognito",
-      skip(): boolean {
-        return (!(this as any).state.answers.enableFederatedAuth || !answers.enableUI);
-      },
-    },
-  ];
-
-  const doAdvancedConfirm: any = await prompt([
-    {
-      type: "confirm",
-      name: "doAdvancedSettings",
-      message: "Do you want to configure advanced settings?",
-      initial: false,
-    },
-  ]);
-  let advancedSettings: any = {};
-  if (doAdvancedConfirm.doAdvancedSettings) {
-    advancedSettings = await prompt(advancedSettingsPrompts);
-  } else {
-    advancedSettings = {
-      enableFederatedAuth: true,
-      federatedAuthProvider: "cognito",
-    };
-  }
 
   // Modify the config for China Region
   if (deployInChina) {
@@ -543,7 +453,6 @@ async function processCreateOptions(options: any): Promise<void> {
         modelEndpoint: answers.sagemakerVlmModelEndpoint,
       }
     ]
-
   } else {
     answers.defaultEmbedding = "bce-embedding-base_v1";
     answers.defaultRerankModel = "bge-reranker-large";
@@ -582,13 +491,6 @@ async function processCreateOptions(options: any): Promise<void> {
         },
       },
     },
-    chat: {
-      enabled: answers.enableChat,
-      bedrockRegion: answers.bedrockRegion,
-      amazonConnect: {
-        enabled: answers.enableConnect,
-      },
-    },
     model: {
       embeddingsModels: embeddingModels.filter(model => model.id === answers.defaultEmbedding),
       rerankModels: rerankModels.filter(model => model.id === answers.defaultRerankModel),
@@ -596,20 +498,6 @@ async function processCreateOptions(options: any): Promise<void> {
       vlms: vlms.filter(model => model.id === answers.defaultVlm),
       modelConfig: {
         modelAssetsBucket: answers.sagemakerModelS3Bucket,
-      },
-    },
-    ui: {
-      enabled: answers.enableUI,
-    },
-    federatedAuth: {
-      enabled: advancedSettings.enableFederatedAuth,
-      provider: {
-        cognito: {
-          enabled: advancedSettings.federatedAuthProvider === "cognito",
-        },
-        // authing: {
-        //   enabled: advancedSettings.federatedAuthProvider === "authing",
-        // },
       },
     },
   };

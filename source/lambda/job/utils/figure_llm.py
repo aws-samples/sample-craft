@@ -12,9 +12,9 @@ from typing import Union
 
 import boto3
 import requests
-from llm_bot_dep.schemas.processing_parameters import VLLMParameters
-from llm_bot_dep.utils.s3_utils import upload_file_to_s3
-from llm_bot_dep.utils.secrets_manager_utils import get_api_key
+from schemas.processing_parameters import VLLMParameters
+from utils.s3_utils import upload_file_to_s3
+from utils.secrets_manager_utils import get_api_key
 from openai import OpenAI
 from PIL import Image
 

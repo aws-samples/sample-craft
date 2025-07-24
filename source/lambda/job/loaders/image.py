@@ -10,8 +10,8 @@ from pathlib import Path
 import boto3
 from langchain.docstore.document import Document
 from langchain_community.document_loaders.base import BaseLoader
-from llm_bot_dep.schemas.processing_parameters import ProcessingParameters
-from llm_bot_dep.utils.s3_utils import (
+from schemas.processing_parameters import ProcessingParameters
+from utils.s3_utils import (
     load_content_from_s3,
     parse_s3_uri,
     s3_object_exists,

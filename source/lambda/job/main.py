@@ -21,78 +21,41 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
-# Import dependencies with fallbacks for local development
-from utils import sm_utils
-from shared.constant import SplittingType
-from loaders.main import process_object
-from schemas.processing_parameters import (
-    ProcessingParameters,
-    VLLMParameters,
-)
+# Default environment variables
+from schemas.processing_parameters import ProcessingParameters, VLLMParameters
+from utils.constant import SplittingType
+from loaders.loader import process_object
 from utils.storage_utils import save_content_to_s3
+from utils import sm_utils
 
-if "BATCH_INDICE" not in args:
-    args["BATCH_INDICE"] = "0"
 
-aos_endpoint = args["AOS_ENDPOINT"]
-batch_file_number = args["BATCH_FILE_NUMBER"]
-batch_indice = args["BATCH_INDICE"]
-document_language = args["DOCUMENT_LANGUAGE"]
-etl_endpoint_name = args["ETL_MODEL_ENDPOINT"]
-etl_object_table_name = args["ETL_OBJECT_TABLE"]
-portal_bucket_name = args["PORTAL_BUCKET"]
-table_item_id = args["TABLE_ITEM_ID"]
-qa_enhancement = args["QA_ENHANCEMENT"]
-region = args["REGION"]
-bedrock_region = args["BEDROCK_REGION"]
-res_bucket = args["RES_BUCKET"]
-s3_bucket = args["S3_BUCKET"]
-s3_prefix = args["S3_PREFIX"]
-chatbot_id = args["CHATBOT_ID"]
-group_name = args["GROUP_NAME"]
-aos_index_name = args["INDEX_ID"]
-chatbot_table = args["CHATBOT_TABLE"]
-model_table_name = args["MODEL_TABLE"]
-index_type = args["INDEX_TYPE"]
+aos_endpoint = os.getenv("AOS_ENDPOINT", "")
+batch_file_number = os.getenv("BATCH_FILE_NUMBER", "10")
+batch_indice = os.getenv("BATCH_INDICE", "0")
+document_language = os.getenv("DOCUMENT_LANGUAGE", "zh")
+etl_endpoint_name = os.getenv("ETL_MODEL_ENDPOINT", "")
+etl_object_table_name = os.getenv("ETL_OBJECT_TABLE", "")
+portal_bucket_name = os.getenv("PORTAL_BUCKET", "")
+table_item_id = os.getenv("TABLE_ITEM_ID", "")
+qa_enhancement = os.getenv("QA_ENHANCEMENT", "false")
+region = os.getenv("AWS_REGION", "us-east-1")
+bedrock_region = os.getenv("BEDROCK_REGION", region)
+res_bucket = os.getenv("RES_BUCKET", "")
+s3_bucket = os.getenv("S3_BUCKET", "")
+s3_prefix = os.getenv("S3_PREFIX", "")
+chatbot_id = os.getenv("CHATBOT_ID", "default")
+group_name = os.getenv("GROUP_NAME", "default")
+aos_index_name = os.getenv("INDEX_ID", "default")
+chatbot_table = os.getenv("CHATBOT_TABLE", "")
+model_table_name = os.getenv("MODEL_TABLE", "")
+index_type = os.getenv("INDEX_TYPE", "qd")
 # Valid Operation types: "create", "delete", "update", "extract_only"
-operation_type = args["OPERATION_TYPE"]
-aos_secret = args["AOS_SECRET_ARN"]
+operation_type = os.getenv("OPERATION_TYPE", "create")
+aos_secret = os.getenv("AOS_SECRET_ARN", "-")
 
-# Initialize AWS clients with error handling
-try:
-    s3_client = boto3.client("s3")
-    secrets_manager_client = boto3.client("secretsmanager")
-    smr_client = boto3.client("sagemaker-runtime")
-    dynamodb = boto3.resource("dynamodb")
-    
-    if etl_object_table_name:
-        etl_object_table = dynamodb.Table(etl_object_table_name)
-    else:
-        etl_object_table = None
-        
-    if model_table_name:
-        model_table = dynamodb.Table(model_table_name)
-    else:
-        model_table = None
-        
-except Exception as e:
-    logger.warning(f"Could not initialize AWS clients: {e}")
-    s3_client = None
-    secrets_manager_client = None
-    smr_client = None
-    dynamodb = None
-    etl_object_table = None
-    model_table = None
-
+# Constants
 ENHANCE_CHUNK_SIZE = 25000
 OBJECT_EXPIRY_TIME = 3600
-
-try:
-    credentials = boto3.Session().get_credentials()
-except:
-    credentials = None
-
 MAX_OS_DOCS_PER_PUT = 8
 
 
@@ -133,35 +96,8 @@ def get_model_info_local(model_table, group_name, chatbot_id):
         logger.warning(f"Could not get model info: {e}")
         return {}, {}
 
-def get_model_info():
-    """Get model information from DynamoDB or return defaults"""
-    try:
-        if not model_table:
-            return {}, {}
-            
-        # Get Embedding Model Parameters
-        embedding_model_item = model_table.get_item(
-            Key={"groupName": group_name, "modelId": f"{chatbot_id}-embedding"}
-        ).get("Item")
-        embedding_model_info = embedding_model_item.get("parameter", {}) if embedding_model_item else {}
-
-        # Get VLM Model Parameters
-        vlm_model_item = model_table.get_item(
-            Key={"groupName": group_name, "modelId": f"{chatbot_id}-vlm"}
-        ).get("Item")
-        vlm_model_info = vlm_model_item.get("parameter", {}) if vlm_model_item else {}
-        
-        return embedding_model_info, vlm_model_info
-    except Exception as e:
-        logger.warning(f"Could not get model info: {e}")
-        return {}, {}
-
-
-embedding_model_info, vlm_model_info = get_model_info()
-
-
-def get_aws_auth_local(region):
-    """Get AWS authentication for OpenSearch with local parameters"""
+def get_aws_auth(region, aos_secret="-"):
+    """Get AWS authentication for OpenSearch"""
     try:
         credentials = boto3.Session().get_credentials()
     except:
@@ -171,33 +107,16 @@ def get_aws_auth_local(region):
         logger.warning("No AWS credentials available")
         return None
         
-    logger.info("No secret provided, using IAM authentication")
-    aws_auth = AWS4Auth(
-        refreshable_credentials=credentials, region=region, service="es"
-    )
-    return aws_auth
-
-def get_aws_auth():
-    """Get AWS authentication for OpenSearch"""
-    if not credentials:
-        logger.warning("No AWS credentials available")
-        return None
-        
     if aos_secret != "-":
         try:
-            if secrets_manager_client:
-                master_user = secrets_manager_client.get_secret_value(
-                    SecretId=aos_secret
-                )["SecretString"]
-                cred = json.loads(master_user)
-                username = cred.get("username")
-                password = cred.get("password")
-                aws_auth = (username, password)
-            else:
-                aws_auth = AWS4Auth(
-                    refreshable_credentials=credentials, region=region, service="es"
-                )
-
+            secrets_manager_client = boto3.client("secretsmanager")
+            master_user = secrets_manager_client.get_secret_value(
+                SecretId=aos_secret
+            )["SecretString"]
+            cred = json.loads(master_user)
+            username = cred.get("username")
+            password = cred.get("password")
+            aws_auth = (username, password)
         except Exception as e:
             logger.info(f"Error retrieving secret, using IAM authentication: {e}")
             aws_auth = AWS4Auth(
@@ -239,13 +158,6 @@ def update_etl_object_table(
         etl_table.put_item(Item=input_body)
     except Exception as e:
         logger.warning(f"Could not update ETL object table: {e}")
-
-# Backward compatibility wrapper
-def update_etl_object_table_global(
-    processing_params: ProcessingParameters, status: str, detail: str = ""
-):
-    """Backward compatibility wrapper using global variables"""
-    update_etl_object_table(processing_params, status, detail, etl_object_table, table_item_id if 'table_item_id' in globals() else "")
 
 
 class S3FileIterator:
@@ -795,7 +707,7 @@ def main(request, job_id=""):
                 bedrock_region=bedrock_region,
                 embedding_model_info=embedding_model_info,
             )
-            aws_auth = get_aws_auth_local(region)
+            aws_auth = get_aws_auth(region, aos_secret)
             
             if aos_endpoint and aws_auth:
                 docsearch = OpenSearchVectorSearch(
@@ -839,10 +751,89 @@ def main(request, job_id=""):
                 "create", docsearch, embedding_model_id, file_iterator
             )
         )
-        ingestion_pipeline(s3_files_iterator, batch_processor, worker, False, s3_client_param, etl_table, execution_id)
+        ingestion_pipeline(s3_files_iterator, batch_processor, worker, False, s3_client_local, etl_object_table_local, job_id)
     else:
         raise ValueError(
             "Invalid operation type. Valid types: create, delete, update, extract_only"
         )
 
+
+def lambda_handler(event, context):
+    """
+    Lambda function handler for processing ETL requests from API Gateway
+    
+    Args:
+        event (dict): Lambda event data containing request parameters
+        context (LambdaContext): Lambda context object
+        
+    Returns:
+        dict: Response with status and details formatted for API Gateway
+    """
+    try:
+        logger.info(f"Received event: {json.dumps(event)}")
+        
+        # Handle API Gateway request
+        http_method = event.get('httpMethod', '')
+        body = {}
+        
+        # Parse request body if present
+        if 'body' in event and event['body']:
+            try:
+                body = json.loads(event['body'])
+            except json.JSONDecodeError:
+                return {
+                    "statusCode": 400,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": json.dumps({"error": "Invalid JSON in request body"})
+                }
+        
+        # Create a request object from the body or query parameters
+        class Request:
+            def __init__(self, data):
+                for key, value in data.items():
+                    setattr(self, key, value)
+        
+        # Use body for POST requests, query parameters for GET requests
+        if http_method == 'GET':
+            query_params = event.get('queryStringParameters', {}) or {}
+            request = Request(query_params)
+            job_id = query_params.get('job_id', context.aws_request_id)
+            
+            # For GET requests, return status information
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "application/json"},
+                "body": json.dumps({
+                    "status": "success",
+                    "message": "ETL API is operational",
+                    "job_id": job_id
+                })
+            }
+        else:  # POST or other methods
+            request = Request(body)
+            job_id = body.get('job_id', context.aws_request_id)
+            
+            # Process the request
+            main(request, job_id)
+            
+            return {
+                "statusCode": 200,
+                "headers": {"Content-Type": "application/json"},
+                "body": json.dumps({
+                    "status": "success",
+                    "message": "ETL process started successfully",
+                    "job_id": job_id
+                })
+            }
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        traceback.print_exc()
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "status": "error",
+                "message": str(e)
+            })
+        }
 

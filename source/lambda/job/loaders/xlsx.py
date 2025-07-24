@@ -9,9 +9,9 @@ from typing import Iterable, List, Optional, Union
 import pandas as pd
 from langchain.docstore.document import Document
 from langchain_community.document_loaders.base import BaseLoader
-from llm_bot_dep.loaders.csv import CustomCSVLoader
-from llm_bot_dep.schemas.processing_parameters import ProcessingParameters
-from llm_bot_dep.utils.s3_utils import download_file_from_s3
+from loaders.csv import CustomCSVLoader
+from schemas.processing_parameters import ProcessingParameters
+from utils.s3_utils import download_file_from_s3
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

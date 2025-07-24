@@ -6,8 +6,8 @@ from pathlib import Path
 
 from langchain.docstore.document import Document
 from langchain_community.document_loaders.base import BaseLoader
-from llm_bot_dep.schemas.processing_parameters import ProcessingParameters
-from llm_bot_dep.utils.s3_utils import download_file_from_s3, load_content_from_file
+from schemas.processing_parameters import ProcessingParameters
+from utils.s3_utils import download_file_from_s3, load_content_from_file
 
 logger = logging.getLogger(__name__)
 

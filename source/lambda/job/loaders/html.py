@@ -8,12 +8,12 @@ from typing import Optional
 import markdownify
 from langchain.docstore.document import Document
 from langchain_community.document_loaders.base import BaseLoader
-from llm_bot_dep.figure_llm import process_markdown_images_with_llm
-from llm_bot_dep.schemas.processing_parameters import (
+from utils.figure_llm import process_markdown_images_with_llm
+from schemas.processing_parameters import (
     ProcessingParameters,
     VLLMParameters,
 )
-from llm_bot_dep.utils.s3_utils import (
+from utils.s3_utils import (
     download_file_from_s3,
     load_content_from_file,
     parse_s3_uri,

@@ -9,11 +9,11 @@ from urllib.parse import urlparse
 
 import boto3
 from langchain.docstore.document import Document
-from llm_bot_dep.schemas.processing_parameters import (
+from schemas.processing_parameters import (
     ProcessingParameters,
     VLLMParameters,
 )
-from llm_bot_dep.utils.s3_utils import (
+from utils.s3_utils import (
     download_file_from_s3,
     load_content_from_s3,
     parse_s3_uri,

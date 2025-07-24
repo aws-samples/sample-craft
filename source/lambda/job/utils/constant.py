@@ -1,7 +1,3 @@
-"""
-Constant used in Glue job
-"""
-
 from enum import Enum, unique
 
 
@@ -21,4 +17,3 @@ class FigureNode(Enum):
     DESCRIPTION = "desp"
     VALUE = "value"
     LINK = "link"
-

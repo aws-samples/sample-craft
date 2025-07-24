@@ -5,8 +5,8 @@ from typing import Iterator, List, Optional, Union
 
 from langchain_community.document_loaders.text import TextLoader
 from langchain_core.documents import Document
-from llm_bot_dep.schemas.processing_parameters import ProcessingParameters
-from llm_bot_dep.utils.s3_utils import download_file_from_s3
+from schemas.processing_parameters import ProcessingParameters
+from utils.s3_utils import download_file_from_s3
 
 logger = logging.getLogger(__name__)
 

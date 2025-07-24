@@ -9,12 +9,12 @@ import mammoth
 from docx import Document as pyDocument
 from langchain.docstore.document import Document
 from langchain_community.document_loaders.base import BaseLoader
-from llm_bot_dep.loaders.html import CustomHtmlLoader
-from llm_bot_dep.schemas.processing_parameters import (
+from loaders.html import CustomHtmlLoader
+from schemas.processing_parameters import (
     ProcessingParameters,
     VLLMParameters,
 )
-from llm_bot_dep.utils.s3_utils import download_file_from_s3
+from utils.s3_utils import download_file_from_s3
 from PIL import Image
 
 logger = logging.getLogger(__name__)
