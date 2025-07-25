@@ -5,8 +5,10 @@ RUN apt-get update && \
     apt-get install -y libxml2-dev libxslt-dev gcc python3-dev curl && \
     apt-get clean
 
-# Install AWS Lambda Runtime Interface Client
+# Install AWS Lambda Runtime Interface Client and Emulator
 RUN pip install --no-cache-dir wheel setuptools awslambdaric
+RUN curl -Lo /usr/local/bin/aws-lambda-rie https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie && \
+    chmod +x /usr/local/bin/aws-lambda-rie
 
 # Set Python path to include the current directory
 ENV PYTHONPATH="${PYTHONPATH}:/var/task"
@@ -23,8 +25,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy function code
 COPY . .
 
-# Set the entrypoint for production
-ENTRYPOINT ["python", "-m", "awslambdaric"]
+# Set the entrypoint for local testing
+ENTRYPOINT ["/usr/local/bin/aws-lambda-rie", "python", "-m", "awslambdaric"]
 
 # Set the handler
 CMD ["main.lambda_handler"]
