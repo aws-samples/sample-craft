@@ -10,8 +10,15 @@ from langchain_community.document_loaders.helpers import detect_file_encodings
 
 logger = logging.getLogger(__name__)
 
-s3_client = boto3.client("s3")
-secrets_client = boto3.client("secretsmanager")
+def get_s3_client():
+    """Get S3 client with region from environment"""
+    region = os.getenv("AWS_REGION", "us-east-1")
+    return boto3.client("s3", region_name=region)
+
+def get_secrets_client():
+    """Get Secrets Manager client with region from environment"""
+    region = os.getenv("AWS_REGION", "us-east-1")
+    return boto3.client("secretsmanager", region_name=region)
 
 
 def load_content_from_file(file_path: str, encoding: str = "utf-8"):
@@ -54,7 +61,7 @@ def load_content_from_s3(bucket_name, object_key, encoding="utf-8"):
     Returns:
         str: Content of the S3 object
     """
-    response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+    response = get_s3_client().get_object(Bucket=bucket_name, Key=object_key)
     content = response["Body"].read()
     
     # Try with the provided encoding first
@@ -84,7 +91,7 @@ def s3_object_exists(s3_uri):
     bucket_name, object_key = parse_s3_uri(s3_uri)
 
     try:
-        s3_client.head_object(Bucket=bucket_name, Key=object_key)
+        get_s3_client().head_object(Bucket=bucket_name, Key=object_key)
         return True
     except ClientError as e:
         if e.response["Error"]["Code"] == "404":
@@ -106,7 +113,7 @@ def download_file_from_s3(bucket_name, object_key, local_path):
     Returns:
         None
     """
-    s3_client.download_file(bucket_name, object_key, local_path)
+    get_s3_client().download_file(bucket_name, object_key, local_path)
 
 
 def upload_file_to_s3(bucket_name, object_key, local_path):
@@ -121,7 +128,7 @@ def upload_file_to_s3(bucket_name, object_key, local_path):
     Returns:
         None
     """
-    s3_client.upload_file(local_path, bucket_name, object_key)
+    get_s3_client().upload_file(local_path, bucket_name, object_key)
 
 
 def put_object_to_s3(bucket_name, object_key, content):
@@ -136,7 +143,7 @@ def put_object_to_s3(bucket_name, object_key, content):
     Returns:
         None
     """
-    s3_client.put_object(Bucket=bucket_name, Key=object_key, Body=content)
+    get_s3_client().put_object(Bucket=bucket_name, Key=object_key, Body=content)
 
 
 def parse_s3_uri(s3_uri):

@@ -1,11 +1,16 @@
 import json
 import logging
+import os
 
 import boto3
 
 logger = logging.getLogger(__name__)
 
-secrets_client = boto3.client("secretsmanager")
+# Initialize client with region
+secrets_client = boto3.client(
+    "secretsmanager",
+    region_name=os.environ.get("AWS_REGION", "us-east-1")
+)
 
 
 def get_api_key(api_secret_arn):

@@ -83,7 +83,10 @@ class SageMakerPdfLoader:
         self.chunk_size = chunk_size
         self.vllm_params = vllm_params
         # Initialize clients if not provided
-        self.sagemaker_runtime_client = boto3.client("sagemaker-runtime")
+        self.sagemaker_runtime_client = boto3.client(
+            "sagemaker-runtime",
+            region_name=os.environ.get("AWS_REGION", "us-east-1")
+        )
 
     def split_pdf(self, local_pdf_path, temp_dir):
         """

@@ -62,8 +62,9 @@ MAX_OS_DOCS_PER_PUT = 8
 def initialize_aws_clients(etl_object_table_name, model_table_name):
     """Initialize AWS clients"""
     try:
-        s3_client = boto3.client("s3")
-        dynamodb = boto3.resource("dynamodb")
+        region = os.getenv("AWS_REGION", "us-east-1")
+        s3_client = boto3.client("s3", region_name=region)
+        dynamodb = boto3.resource("dynamodb", region_name=region)
         
         etl_object_table = dynamodb.Table(etl_object_table_name) if etl_object_table_name else None
         model_table = dynamodb.Table(model_table_name) if model_table_name else None
@@ -109,7 +110,7 @@ def get_aws_auth(region, aos_secret="-"):
         
     if aos_secret != "-":
         try:
-            secrets_manager_client = boto3.client("secretsmanager")
+            secrets_manager_client = boto3.client("secretsmanager", region_name=region)
             master_user = secrets_manager_client.get_secret_value(
                 SecretId=aos_secret
             )["SecretString"]
@@ -647,16 +648,15 @@ def get_param_value(request_val, env_key, default_val):
         return request_val
     return os.getenv(env_key, default_val)
 
-def main(request, job_id=""):
+def main(request, job_id: str):
     # Resolve parameters with fallback: request -> env -> default
     s3_bucket = get_param_value(request.s3_bucket, 'S3_BUCKET', '')
     s3_prefix = get_param_value(request.s3_prefix, 'S3_PREFIX', '')
-    operation_type = get_param_value(request.operation_type, 'OPERATION_TYPE', 'create')
-    batch_file_number = get_param_value(request.batch_file_number, 'BATCH_FILE_NUMBER', '10')
-    batch_indice = get_param_value(request.batch_indice, 'BATCH_INDICE', '0')
-    document_language = get_param_value(request.document_language, 'DOCUMENT_LANGUAGE', 'zh')
-    qa_enhancement = get_param_value(request.qa_enhancement, 'QA_ENHANCEMENT', 'false')
-    index_type = get_param_value(request.index_type, 'INDEX_TYPE', 'qd')
+    operation_type = get_param_value(getattr(request, 'operation_type', None), 'OPERATION_TYPE', 'extract_only')
+    batch_file_number = get_param_value(getattr(request, 'batch_file_number', None), 'BATCH_FILE_NUMBER', '10')
+    batch_indice = get_param_value(getattr(request, 'batch_indice', None), 'BATCH_INDICE', '0')
+    document_language = get_param_value(getattr(request, 'document_language', None), 'DOCUMENT_LANGUAGE', 'zh')
+    index_type = get_param_value(getattr(request, 'index_type', None), 'INDEX_TYPE', 'qd')
     region = os.getenv("AWS_REGION", "us-east-1")
     
     aos_endpoint = get_param_value(getattr(request, 'aos_endpoint', None), "AOS_ENDPOINT", "")
@@ -794,10 +794,10 @@ def lambda_handler(event, context):
                     setattr(self, key, value)
         
         # Use body for POST requests, query parameters for GET requests
+        job_id = query_params.get('job_id', context.aws_request_id)
         if http_method == 'GET':
             query_params = event.get('queryStringParameters', {}) or {}
             request = Request(query_params)
-            job_id = query_params.get('job_id', context.aws_request_id)
             
             # For GET requests, return status information
             return {
@@ -809,9 +809,8 @@ def lambda_handler(event, context):
                     "job_id": job_id
                 })
             }
-        else:  # POST or other methods
+        else:
             request = Request(body)
-            job_id = body.get('job_id', context.aws_request_id)
             
             # Process the request
             main(request, job_id)
@@ -836,4 +835,3 @@ def lambda_handler(event, context):
                 "message": str(e)
             })
         }
-

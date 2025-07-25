@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+import os
 from typing import Any, Dict, Iterator, List, Mapping, Optional
 
 import boto3
@@ -25,7 +26,10 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 session = boto3.session.Session()
-secret_manager_client = session.client(service_name="secretsmanager")
+secret_manager_client = session.client(
+    service_name="secretsmanager",
+    region_name=os.environ.get("AWS_REGION", "us-east-1")
+)
 
 
 def get_model_details(group_name: str, chatbot_id: str, model_table):

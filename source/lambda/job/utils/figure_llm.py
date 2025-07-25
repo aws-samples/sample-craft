@@ -113,8 +113,7 @@ class figureUnderstand:
         """
         self.model_provider = model_provider
         if model_provider == "Bedrock":
-            session = boto3.session.Session()
-            bedrock_region = session.region_name
+            bedrock_region = os.environ.get("AWS_REGION", "us-east-1")
 
             # Validate region support
             if bedrock_region not in BEDROCK_CROSS_REGION_SUPPORTED_REGIONS:
@@ -123,7 +122,9 @@ class figureUnderstand:
                 )
 
             # Initialize Bedrock client and model ID
-            self.bedrock_runtime = boto3.client(service_name="bedrock-runtime")
+            self.bedrock_runtime = boto3.client(
+                service_name="bedrock-runtime", region_name=bedrock_region
+            )
 
             # Add model prefix if not provided
             model_prefix = bedrock_region.split("-")[0] + "."
@@ -150,7 +151,10 @@ class figureUnderstand:
                 raise ValueError(
                     "SageMaker endpoint name is required when using SageMaker model"
                 )
-            self.sagemaker_client = boto3.client("sagemaker-runtime")
+            self.sagemaker_client = boto3.client(
+                "sagemaker-runtime",
+                region_name=os.environ.get("AWS_REGION", "us-east-1")
+            )
             self.model_sagemaker_endpoint_name = model_sagemaker_endpoint_name
         else:
             raise ValueError(

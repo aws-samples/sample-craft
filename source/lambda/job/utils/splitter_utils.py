@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import traceback
 import uuid
@@ -11,7 +12,7 @@ from utils.constant import FigureNode, SplittingType
 from utils.storage_utils import save_content_to_s3
 from lxml import etree
 
-s3 = boto3.client("s3")
+s3 = boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 

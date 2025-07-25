@@ -44,10 +44,10 @@ zh_prompt_template = """
 
 class EnhanceWithBedrock:
     def __init__(self, prompt: str, document: Document, zh: bool = True):
-        BEDROCK_REGION = str(boto3.session.Session().region_name)
+        BEDROCK_REGION = os.environ.get("AWS_REGION", "us-east-1")
         # TODO, pass such credentials from CloudFormation creation and store in SSM
         openai.api_key = os.getenv("OPENAI_API_KEY")
-        self.bedrock_client = boto3.client("bedrock-runtime")
+        self.bedrock_client = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
         # session = boto3.Session()
         # self.bedrock_client = session.client(
         #     service_name='bedrock',

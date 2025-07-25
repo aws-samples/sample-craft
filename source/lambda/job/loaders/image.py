@@ -59,7 +59,10 @@ class SageMakerImageLoader(BaseLoader):
         self.language_code = language_code
         self.vllm_params = vllm_params
         # Initialize clients
-        self.sagemaker_runtime_client = boto3.client("sagemaker-runtime")
+        self.sagemaker_runtime_client = boto3.client(
+            "sagemaker-runtime",
+            region_name=os.environ.get("AWS_REGION", "us-east-1")
+        )
 
     def invoke_etl_model(self, source_object_key):
         """
