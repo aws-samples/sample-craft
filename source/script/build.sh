@@ -39,7 +39,6 @@ prepare_etl_model() {
     pwd
 }
 
-
 modules_prepared=""
 cd ..
 

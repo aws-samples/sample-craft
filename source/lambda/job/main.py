@@ -29,29 +29,29 @@ from utils.storage_utils import save_content_to_s3
 from utils import sm_utils
 
 
-aos_endpoint = os.getenv("AOS_ENDPOINT", "")
-batch_file_number = os.getenv("BATCH_FILE_NUMBER", "10")
-batch_indice = os.getenv("BATCH_INDICE", "0")
-document_language = os.getenv("DOCUMENT_LANGUAGE", "zh")
-etl_endpoint_name = os.getenv("ETL_MODEL_ENDPOINT", "")
-etl_object_table_name = os.getenv("ETL_OBJECT_TABLE", "")
-portal_bucket_name = os.getenv("PORTAL_BUCKET", "")
-table_item_id = os.getenv("TABLE_ITEM_ID", "")
-qa_enhancement = os.getenv("QA_ENHANCEMENT", "false")
-region = os.getenv("AWS_REGION", "us-east-1")
-bedrock_region = os.getenv("BEDROCK_REGION", region)
-res_bucket = os.getenv("RES_BUCKET", "")
-s3_bucket = os.getenv("S3_BUCKET", "")
-s3_prefix = os.getenv("S3_PREFIX", "")
-chatbot_id = os.getenv("CHATBOT_ID", "default")
-group_name = os.getenv("GROUP_NAME", "default")
-aos_index_name = os.getenv("INDEX_ID", "default")
-chatbot_table = os.getenv("CHATBOT_TABLE", "")
-model_table_name = os.getenv("MODEL_TABLE", "")
-index_type = os.getenv("INDEX_TYPE", "qd")
-# Valid Operation types: "create", "delete", "update", "extract_only"
-operation_type = os.getenv("OPERATION_TYPE", "create")
-aos_secret = os.getenv("AOS_SECRET_ARN", "-")
+# aos_endpoint = os.getenv("AOS_ENDPOINT", "")
+# batch_file_number = os.getenv("BATCH_FILE_NUMBER", "10")
+# batch_indice = os.getenv("BATCH_INDICE", "0")
+# document_language = os.getenv("DOCUMENT_LANGUAGE", "zh")
+# etl_endpoint_name = os.getenv("ETL_MODEL_ENDPOINT", "")
+# etl_object_table_name = os.getenv("ETL_OBJECT_TABLE", "")
+# portal_bucket_name = os.getenv("PORTAL_BUCKET", "")
+# table_item_id = os.getenv("TABLE_ITEM_ID", "")
+# qa_enhancement = os.getenv("QA_ENHANCEMENT", "false")
+# region = os.getenv("AWS_REGION", "us-east-1")
+# bedrock_region = os.getenv("BEDROCK_REGION", region)
+# res_bucket = os.getenv("RES_BUCKET", "")
+# s3_bucket = os.getenv("S3_BUCKET", "")
+# s3_prefix = os.getenv("S3_PREFIX", "")
+# chatbot_id = os.getenv("CHATBOT_ID", "default")
+# group_name = os.getenv("GROUP_NAME", "default")
+# aos_index_name = os.getenv("INDEX_ID", "default")
+# chatbot_table = os.getenv("CHATBOT_TABLE", "")
+# model_table_name = os.getenv("MODEL_TABLE", "")
+# index_type = os.getenv("INDEX_TYPE", "qd")
+# # Valid Operation types: "create", "delete", "update", "extract_only"
+# operation_type = os.getenv("OPERATION_TYPE", "create")
+# aos_secret = os.getenv("AOS_SECRET_ARN", "-")
 
 # Constants
 ENHANCE_CHUNK_SIZE = 25000
@@ -59,7 +59,7 @@ OBJECT_EXPIRY_TIME = 3600
 MAX_OS_DOCS_PER_PUT = 8
 
 
-def initialize_aws_clients(etl_object_table_name, model_table_name):
+def initialize_aws_clients(etl_object_table_name):
     """Initialize AWS clients"""
     try:
         region = os.getenv("AWS_REGION", "us-east-1")
@@ -67,35 +67,41 @@ def initialize_aws_clients(etl_object_table_name, model_table_name):
         dynamodb = boto3.resource("dynamodb", region_name=region)
         
         etl_object_table = dynamodb.Table(etl_object_table_name) if etl_object_table_name else None
-        model_table = dynamodb.Table(model_table_name) if model_table_name else None
         
-        return s3_client, dynamodb, etl_object_table, model_table
+        return s3_client, dynamodb, etl_object_table
     except Exception as e:
         logger.warning(f"Could not initialize AWS clients: {e}")
-        return None, None, None, None
+        return None, None, None
 
-def get_model_info_local(model_table, group_name, chatbot_id):
-    """Get model information from DynamoDB or return defaults"""
-    try:
-        if not model_table:
-            return {}, {}
-            
-        # Get Embedding Model Parameters
-        embedding_model_item = model_table.get_item(
-            Key={"groupName": group_name, "modelId": f"{chatbot_id}-embedding"}
-        ).get("Item")
-        embedding_model_info = embedding_model_item.get("parameter", {}) if embedding_model_item else {}
+def get_model_info():
+    """Get model information, update the model info when using in GCR"""
+    embedding_model_info = {
+        "modelId": "amazon.titan-embed-text-v2:0",
+        "apiKeyArn": "",
+        "baseUrl": "",
+        "modelDimension": 1024,
+        "modelEndpoint": "",
+        "modelProvider": "Bedrock"
+    }
 
-        # Get VLM Model Parameters
-        vlm_model_item = model_table.get_item(
-            Key={"groupName": group_name, "modelId": f"{chatbot_id}-vlm"}
-        ).get("Item")
-        vlm_model_info = vlm_model_item.get("parameter", {}) if vlm_model_item else {}
+    # embedding_model_info = {
+    #     "ModelDimension": 768,
+    #     "ModelEndpoint": "bce-embedding-and-bge-reranker-43972-endpoint",
+    #     "ModelName": "bce_embedding_model.tar.gz",
+    #     "ModelProvider": "Netease",
+    #     "ModelType": "bce"
+    # }
+
+    vlm_model_info = {
+        "modelId": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "apiKeyArn": "",
+        "baseUrl": "",
+        "modelEndpoint": "",
+        "modelProvider": "Bedrock"
+    }
         
-        return embedding_model_info, vlm_model_info
-    except Exception as e:
-        logger.warning(f"Could not get model info: {e}")
-        return {}, {}
+    return embedding_model_info, vlm_model_info
+
 
 def get_aws_auth(region, aos_secret="-"):
     """Get AWS authentication for OpenSearch"""
@@ -144,7 +150,7 @@ def update_etl_object_table(
     """
     try:
         if not etl_table:
-            logger.info(f"ETL object table not available, status: {status}")
+            logger.warning(f"ETL object table not available, status: {status}, not update ETL object table")
             return
             
         input_body = {
@@ -172,8 +178,10 @@ class S3FileIterator:
         self.batch_indice = batch_indice
         self.document_language = document_language
         self.etl_endpoint_name = etl_endpoint_name
-        self.res_bucket = res_bucket
-        self.portal_bucket_name = portal_bucket_name
+        self.res_bucket = bucket
+        # self.res_bucket = res_bucket
+        # self.portal_bucket_name = portal_bucket_name
+        self.portal_bucket_name = bucket
         self.vlm_model_info = vlm_model_info or {}
         self.etl_table = etl_table
         self.execution_id = execution_id
@@ -184,8 +192,6 @@ class S3FileIterator:
 
     def iterate_s3_files(self, extract_content=True) -> Generator:
         if not self.paginator:
-            logger.warning("S3 client not available, using mock data")
-            # Return mock data for local development
             yield ProcessingParameters(
                 source_bucket_name=self.bucket,
                 source_object_key="mock/test.pdf",
@@ -226,12 +232,12 @@ class S3FileIterator:
 
                     # Create VLLM parameters
                     vllm_params = VLLMParameters(
-                        model_provider=self.vlm_model_info.get("modelProvider"),
-                        model_id=self.vlm_model_info.get("modelId"),
-                        model_api_url=self.vlm_model_info.get("baseUrl"),
-                        model_secret_name=self.vlm_model_info.get("apiKeyArn"),
+                        model_provider=self.vlm_model_info.get("modelProvider", "Bedrock"),
+                        model_id=self.vlm_model_info.get("modelId", "anthropic.claude-3-sonnet-20240229-v1:0"),
+                        model_api_url=self.vlm_model_info.get("baseUrl", ""),
+                        model_secret_name=self.vlm_model_info.get("apiKeyArn", ""),
                         model_sagemaker_endpoint_name=self.vlm_model_info.get(
-                            "modelEndpoint"
+                            "modelEndpoint", ""
                         ),
                     )
 
@@ -529,7 +535,7 @@ def ingestion_pipeline(
             documents = process_object(processing_params)
             for document in documents:
                 save_content_to_s3(
-                    s3_client_param or s3_client,
+                    s3_client_param,
                     document,
                     processing_params.result_bucket_name,
                     SplittingType.SEMANTIC.value,
@@ -564,7 +570,7 @@ def ingestion_pipeline(
                         document.page_content = document.page_content
 
                     save_content_to_s3(
-                        s3_client_param or s3_client,
+                        s3_client_param,
                         document,
                         processing_params.result_bucket_name,
                         SplittingType.CHUNK.value,
@@ -688,8 +694,8 @@ def main(request, job_id: str):
         ]
 
     # Initialize AWS clients and get model info with local variables
-    s3_client_local, dynamodb_local, etl_object_table_local, model_table_local = initialize_aws_clients(etl_object_table_name, model_table_name)
-    embedding_model_info, vlm_model_info = get_model_info_local(model_table_local, group_name, chatbot_id)
+    s3_client_local, dynamodb_local, etl_object_table_local = initialize_aws_clients(etl_object_table_name)
+    embedding_model_info, vlm_model_info = get_model_info()
     embedding_model_id = embedding_model_info.get("modelId", "default-embedding")
     
     file_iterator = S3FileIterator(
@@ -734,10 +740,10 @@ def main(request, job_id: str):
     )
     
     if operation_type == "create":
-        ingestion_pipeline(s3_files_iterator, batch_processor, worker, False, s3_client_param, etl_table, execution_id)
+        ingestion_pipeline(s3_files_iterator, batch_processor, worker, False, s3_client_local, etl_object_table_local, job_id)
     elif operation_type == "extract_only":
         ingestion_pipeline(
-            s3_files_iterator, batch_processor, worker, extract_only=True, s3_client_param=s3_client_param, etl_table=etl_table, execution_id=execution_id
+            s3_files_iterator, batch_processor, worker, extract_only=True, s3_client_param=s3_client_local, etl_table=etl_object_table_local, execution_id=job_id
         )
     elif operation_type == "delete":
         delete_pipeline(s3_files_iterator, batch_processor, worker)
@@ -794,9 +800,9 @@ def lambda_handler(event, context):
                     setattr(self, key, value)
         
         # Use body for POST requests, query parameters for GET requests
+        query_params = event.get('queryStringParameters', {}) or {}
         job_id = query_params.get('job_id', context.aws_request_id)
         if http_method == 'GET':
-            query_params = event.get('queryStringParameters', {}) or {}
             request = Request(query_params)
             
             # For GET requests, return status information

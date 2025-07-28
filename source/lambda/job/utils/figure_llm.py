@@ -1,5 +1,4 @@
 import base64
-import importlib.resources
 import io
 import json
 import logging
@@ -64,27 +63,30 @@ BEDROCK_CROSS_REGION_SUPPORTED_REGIONS = [
 
 
 def load_prompt_file(file_path, is_json=False):
-    """Load a prompt file from package resources or file system.
+    """Load a prompt file from the local prompt directory.
 
     Args:
-        file_path (str): Path to the prompt file relative to the package
+        file_path (str): Path to the prompt file relative to the prompt directory
         is_json (bool): Whether to parse the file as JSON
 
     Returns:
         The content of the prompt file, parsed as JSON if is_json=True
     """
+    # Get the directory of the current file
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Go up one level to the job directory, then into prompt
+    prompt_dir = os.path.join(os.path.dirname(current_dir), "prompt")
+    full_path = os.path.join(prompt_dir, file_path)
+    
     try:
-        with importlib.resources.files("llm_bot_dep.prompt").joinpath(
-            file_path
-        ).open("r") as file:
+        with open(full_path, "r", encoding="utf-8") as file:
             if is_json:
                 data = json.load(file)
             else:
                 data = file.read()
         return data
-    except (ImportError, ModuleNotFoundError, FileNotFoundError):
-        # Fallback for older Python versions or direct file access
-        raise FileNotFoundError(f"Prompt file not found: {file_path}")
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Prompt file not found: {full_path}")
 
 
 class figureUnderstand:
