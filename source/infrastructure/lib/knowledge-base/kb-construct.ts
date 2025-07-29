@@ -11,25 +11,22 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Duration, StackProps, RemovalPolicy } from "aws-cdk-lib";
+import { Duration, StackProps, RemovalPolicy, CustomResource, Aws } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as ecr_assets from "aws-cdk-lib/aws-ecr-assets";
 import { DockerImageCode, DockerImageFunction } from "aws-cdk-lib/aws-lambda";
 import { Architecture } from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as cr from "aws-cdk-lib/custom-resources";
+import * as cognito from "aws-cdk-lib/aws-cognito";
 import { Construct } from "constructs";
 import { DynamoDBTable } from "../shared/table";
-
 import { IAMHelper } from "../shared/iam-helper";
-
 import { SystemConfig } from "../shared/types";
 import { SharedConstructOutputs } from "../shared/shared-construct";
 import { ModelConstructOutputs } from "../model/model-construct";
-
 
 interface KnowledgeBaseStackProps extends StackProps {
   readonly config: SystemConfig;
@@ -40,8 +37,6 @@ interface KnowledgeBaseStackProps extends StackProps {
 
 export interface KnowledgeBaseStackOutputs {
   readonly lambdaFunction: DockerImageFunction;
-  readonly apiGateway: apigateway.RestApi;
-  readonly apiKey: apigateway.ApiKey;
   readonly executionTableName: string;
   readonly etlObjTableName: string;
   readonly etlObjIndexName: string;
@@ -52,12 +47,12 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
   public executionTableName: string = "";
   public etlObjTableName: string = "";
   public lambdaFunction: DockerImageFunction;
-  public apiGateway: apigateway.RestApi;
-  public apiKey: apigateway.ApiKey;
-
   private iamHelper: IAMHelper;
   private glueResultBucket: s3.Bucket;
   private dynamodbStatement: iam.PolicyStatement;
+  private agentCoreGatewayRole!: iam.Role;
+  private cognitoUserPool!: cognito.UserPool;
+  private cognitoClient!: cognito.UserPoolClient;
 
 
   constructor(scope: Construct, id: string, props: KnowledgeBaseStackProps) {
@@ -74,10 +69,14 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
 
     this.lambdaFunction = this.createKnowledgeBaseLambda(props);
     
-    // Create API Gateway and API Key
-    const { api, apiKey } = this.createApiGateway(this.lambdaFunction);
-    this.apiGateway = api;
-    this.apiKey = apiKey;
+    // Create Cognito resources
+    this.createCognitoResources();
+    
+    // Create AgentCore Gateway IAM role
+    this.createAgentCoreGatewayRole();
+    
+    // Create AgentCore Gateway
+    this.createAgentCoreGateway(this.lambdaFunction);
 
   }
 
@@ -119,65 +118,6 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     );
 
     return { executionTable, etlObjTable, dynamodbStatement };
-  }
-
-
-  private createApiGateway(lambdaFunction: DockerImageFunction) {
-    // Create REST API
-    const api = new apigateway.RestApi(this, "ETLApi", {
-      restApiName: "Knowledge Base ETL API",
-      description: "API for Knowledge Base ETL operations",
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
-      },
-    });
-    
-    // Create API usage plan
-    const usagePlan = api.addUsagePlan("ETLUsagePlan", {
-      name: "ETL API Usage Plan",
-      throttle: {
-        rateLimit: 10,
-        burstLimit: 20,
-      },
-      quota: {
-        limit: 1000,
-        period: apigateway.Period.DAY,
-      },
-    });
-    
-    // Create API key
-    const apiKey = new apigateway.ApiKey(this, "ETLApiKey", {
-      apiKeyName: "etl-api-key",
-      description: "API Key for ETL API",
-      enabled: true,
-    });
-    
-    // Add API key to usage plan
-    usagePlan.addApiKey(apiKey);
-    usagePlan.addApiStage({
-      stage: api.deploymentStage,
-    });
-    
-    // Create Lambda integration
-    const lambdaIntegration = new apigateway.LambdaIntegration(lambdaFunction, {
-      proxy: true,
-    });
-    
-    // Create API resources and methods
-    const etlResource = api.root.addResource("etl");
-    
-    // POST /etl - Process ETL job
-    etlResource.addMethod("POST", lambdaIntegration, {
-      apiKeyRequired: true,
-    });
-    
-    // GET /etl - Get ETL status
-    etlResource.addMethod("GET", lambdaIntegration, {
-      apiKeyRequired: true,
-    });
-    
-    return { api, apiKey };
   }
   
   private createKnowledgeBaseLambda(props: any): DockerImageFunction {
@@ -241,5 +181,141 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     });
 
     return lambdaFunction;
+  }
+
+  private createCognitoResources() {
+    // Create Cognito User Pool
+    this.cognitoUserPool = new cognito.UserPool(this, "AgentCoreUserPool", {
+      userPoolName: "sample-agentcore-gateway-pool",
+      passwordPolicy: {
+        minLength: 8,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+
+    // Create Resource Server
+    const resourceServer = this.cognitoUserPool.addResourceServer("AgentCoreResourceServer", {
+      identifier: "sample-agentcore-gateway-id",
+      // userPoolResourceServerName: "sample-agentcore-gateway-name",
+      scopes: [
+        { scopeName: "gateway:read", scopeDescription: "Read access" },
+        { scopeName: "gateway:write", scopeDescription: "Write access" },
+      ],
+    });
+
+    // Create App Client for machine-to-machine authentication
+    this.cognitoClient = this.cognitoUserPool.addClient("AgentCoreClient", {
+      userPoolClientName: "sample-agentcore-gateway-client",
+      generateSecret: true,
+      oAuth: {
+        flows: {
+          clientCredentials: true,
+        },
+        scopes: [
+          cognito.OAuthScope.resourceServer(resourceServer, { scopeName: "gateway:read", scopeDescription: "Read access" }),
+          cognito.OAuthScope.resourceServer(resourceServer, { scopeName: "gateway:write", scopeDescription: "Write access" }),
+        ],
+      },
+      authFlows: {
+        userPassword: false,
+        userSrp: false,
+        custom: false,
+        adminUserPassword: false,
+      },
+      supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
+    });
+  }
+
+  private createAgentCoreGatewayRole() {
+    this.agentCoreGatewayRole = new iam.Role(this, "AgentCoreGatewayRole", {
+      assumedBy: new iam.ServicePrincipal("bedrock-agentcore.amazonaws.com").withConditions({
+        StringEquals: {
+          "aws:SourceAccount": Aws.ACCOUNT_ID
+        },
+        ArnLike: {
+          "aws:SourceArn": `arn:aws:bedrock-agentcore:${Aws.REGION}:${Aws.ACCOUNT_ID}:*`
+        }
+      }),
+      inlinePolicies: {
+        AgentCoreGatewayPolicy: new iam.PolicyDocument({
+          statements: [
+            new iam.PolicyStatement({
+              effect: iam.Effect.ALLOW,
+              actions: [
+                "bedrock-agentcore:*",
+                "bedrock:*",
+                "agent-credential-provider:*",
+                "iam:PassRole",
+                "secretsmanager:GetSecretValue",
+                "lambda:InvokeFunction"
+              ],
+              resources: ["*"]
+            })
+          ]
+        })
+      }
+    });
+  }
+
+  private createAgentCoreGateway(lambdaFunction: DockerImageFunction) {
+    // Create custom resource Lambda for AgentCore Gateway management
+    const agentCoreCustomResourceLambda = new lambda.Function(this, "AgentCoreCustomResource", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: "custom_resource.handler",
+      timeout: Duration.minutes(10),
+      code: lambda.Code.fromAsset("../lambda/agentcore_gateway", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            "bash", "-c",
+            "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output"
+          ],
+        },
+      }),
+      environment: {
+        TARGET_LAMBDA_ARN: lambdaFunction.functionArn,
+        COGNITO_USER_POOL_ID: this.cognitoUserPool.userPoolId,
+        COGNITO_CLIENT_ID: this.cognitoClient.userPoolClientId,
+        AGENTCORE_ROLE_ARN: this.agentCoreGatewayRole.roleArn
+      }
+    });
+    
+    agentCoreCustomResourceLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: [
+          "bedrock-agentcore:*",
+          "lambda:InvokeFunction",
+          "iam:PassRole",
+          "iam:GetRole",
+          "iam:ListRoles",
+          "cognito-idp:*",
+          "logs:*"
+        ],
+        resources: ["*"]
+      })
+    );
+    
+    // Grant permission to pass the AgentCore gateway role
+    this.agentCoreGatewayRole.grantPassRole(agentCoreCustomResourceLambda.role!);
+
+    // Create custom resource provider
+    const provider = new cr.Provider(this, "AgentCoreProvider", {
+      onEventHandler: agentCoreCustomResourceLambda,
+    });
+    
+    // Ensure the custom resource depends on the gateway role
+    provider.node.addDependency(this.agentCoreGatewayRole);
+
+    // Create the custom resource
+    const agentCoreGateway = new CustomResource(this, "AgentCoreGateway", {
+      serviceToken: provider.serviceToken,
+      properties: {
+        GatewayName: "etl-mcp-gateway",
+        Description: "AgentCore Gateway for ETL MCP tools",
+        LambdaFunctionArn: lambdaFunction.functionArn
+      }
+    });
+
+    return agentCoreGateway;
   }
 }

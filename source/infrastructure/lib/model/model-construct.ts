@@ -28,7 +28,6 @@ export interface ModelConstructProps {
 }
 
 export interface ModelConstructOutputs {
-  defaultEmbeddingModelName: string;
   defaultKnowledgeBaseModelName: string;
 }
 
@@ -60,7 +59,6 @@ interface DeploySagemakerEndpointResponse {
 }
 
 export class ModelConstruct extends Construct implements ModelConstructOutputs {
-  public defaultEmbeddingModelName: string = "";
   public defaultKnowledgeBaseModelName: string = "";
   modelAccount = Aws.ACCOUNT_ID;
   modelRegion: string;
@@ -79,8 +77,6 @@ export class ModelConstruct extends Construct implements ModelConstructOutputs {
       props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled) {
 
       this.initializeSageMakerConfig();
-      const embeddingAndRerankingModelResources = this.deployEmbeddingAndRerankerEndpoint(props);
-      this.defaultEmbeddingModelName = embeddingAndRerankingModelResources.endpoint.endpointName ?? "";
 
       if (props.config.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled) {
         // Deploy knowledge base model if enabled
@@ -89,49 +85,6 @@ export class ModelConstruct extends Construct implements ModelConstructOutputs {
       }
     }
 
-  }
-
-  private deployEmbeddingAndRerankerEndpoint(props: ModelConstructProps) {
-    // Deploy Embedding and Reranker model
-    let embeddingAndRerankingModelEndpoint = props.config.model.embeddingsModels[0].modelEndpoint;
-    let embeddingAndRerankerEndpointInstanceType = "ml.g4dn.4xlarge";
-    let embeddingAndRerankerImageUrl = this.modelPublicEcrAccount + this.modelRegion + this.modelImageUrlDomain + "djl-inference:0.21.0-deepspeed0.8.3-cu117";
-    let embeddingAndRerankerModelDataUrl = `s3://${props.config.model.modelConfig.modelAssetsBucket}/bce-embedding-and-bge-reranker_deploy_code/`;
-    let codePrefix = "bce-embedding-and-bge-reranker_deploy_code";
-
-    const embeddingAndRerankerModelResources = this.deploySagemakerEndpoint({
-      modelProps: {
-        modelName: embeddingAndRerankingModelEndpoint + "-model",
-        executionRoleArn: this.modelExecutionRole?.roleArn,
-        primaryContainer: {
-          image: embeddingAndRerankerImageUrl,
-          modelDataUrl: embeddingAndRerankerModelDataUrl,
-          environment: {
-            S3_CODE_PREFIX: codePrefix,
-          },
-          mode: "MultiModel"
-        },
-      },
-      endpointConfigProps: {
-        endpointConfigName: embeddingAndRerankingModelEndpoint + "-config",
-        productionVariants: [
-          {
-            initialVariantWeight: 1.0,
-            modelName: embeddingAndRerankingModelEndpoint + "-model",
-            variantName: this.modelVariantName || "",
-            containerStartupHealthCheckTimeoutInSeconds: 15 * 60,
-            initialInstanceCount: 1,
-            instanceType: embeddingAndRerankerEndpointInstanceType,
-          },
-        ],
-      },
-      endpointProps: {
-        endpointName: embeddingAndRerankingModelEndpoint,
-        endpointConfigName: embeddingAndRerankingModelEndpoint + "-config",
-      },
-    });
-
-    return embeddingAndRerankerModelResources;
   }
 
   private deployKnowledgeBaseEndpoint(props: ModelConstructProps) {

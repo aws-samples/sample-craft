@@ -29,31 +29,6 @@ from utils.storage_utils import save_content_to_s3
 from utils import sm_utils
 
 
-# aos_endpoint = os.getenv("AOS_ENDPOINT", "")
-# batch_file_number = os.getenv("BATCH_FILE_NUMBER", "10")
-# batch_indice = os.getenv("BATCH_INDICE", "0")
-# document_language = os.getenv("DOCUMENT_LANGUAGE", "zh")
-# etl_endpoint_name = os.getenv("ETL_MODEL_ENDPOINT", "")
-# etl_object_table_name = os.getenv("ETL_OBJECT_TABLE", "")
-# portal_bucket_name = os.getenv("PORTAL_BUCKET", "")
-# table_item_id = os.getenv("TABLE_ITEM_ID", "")
-# qa_enhancement = os.getenv("QA_ENHANCEMENT", "false")
-# region = os.getenv("AWS_REGION", "us-east-1")
-# bedrock_region = os.getenv("BEDROCK_REGION", region)
-# res_bucket = os.getenv("RES_BUCKET", "")
-# s3_bucket = os.getenv("S3_BUCKET", "")
-# s3_prefix = os.getenv("S3_PREFIX", "")
-# chatbot_id = os.getenv("CHATBOT_ID", "default")
-# group_name = os.getenv("GROUP_NAME", "default")
-# aos_index_name = os.getenv("INDEX_ID", "default")
-# chatbot_table = os.getenv("CHATBOT_TABLE", "")
-# model_table_name = os.getenv("MODEL_TABLE", "")
-# index_type = os.getenv("INDEX_TYPE", "qd")
-# # Valid Operation types: "create", "delete", "update", "extract_only"
-# operation_type = os.getenv("OPERATION_TYPE", "create")
-# aos_secret = os.getenv("AOS_SECRET_ARN", "-")
-
-# Constants
 ENHANCE_CHUNK_SIZE = 25000
 OBJECT_EXPIRY_TIME = 3600
 MAX_OS_DOCS_PER_PUT = 8
@@ -668,6 +643,8 @@ def main(request, job_id: str):
     aos_endpoint = get_param_value(getattr(request, 'aos_endpoint', None), "AOS_ENDPOINT", "")
     etl_endpoint_name = get_param_value(getattr(request, 'etl_endpoint_name', None), "ETL_MODEL_ENDPOINT", "")
     etl_object_table_name = get_param_value(getattr(request, 'etl_object_table_name', None), "ETL_OBJECT_TABLE", "")
+    print("lvning test")
+    print(etl_object_table_name)
     portal_bucket_name = get_param_value(getattr(request, 'portal_bucket_name', None), "PORTAL_BUCKET", "")
     bedrock_region = get_param_value(getattr(request, 'bedrock_region', None), "BEDROCK_REGION", "us-east-1")
     res_bucket = get_param_value(getattr(request, 'res_bucket', None), "RES_BUCKET", "")
@@ -707,29 +684,25 @@ def main(request, job_id: str):
     if operation_type == "extract_only":
         embedding_function, docsearch = None, None
     else:
-        try:
-            embedding_function = sm_utils.getCustomEmbeddings(
-                region_name=region,
-                bedrock_region=bedrock_region,
-                embedding_model_info=embedding_model_info,
+        embedding_function = sm_utils.getCustomEmbeddings(
+            region_name=region,
+            bedrock_region=bedrock_region,
+            embedding_model_info=embedding_model_info,
+        )
+        aws_auth = get_aws_auth(region, aos_secret)
+        
+        if aos_endpoint and aws_auth:
+            docsearch = OpenSearchVectorSearch(
+                index_name=aos_index_name,
+                embedding_function=embedding_function,
+                opensearch_url="https://{}".format(aos_endpoint),
+                http_auth=aws_auth,
+                use_ssl=True,
+                verify_certs=True,
+                connection_class=RequestsHttpConnection,
             )
-            aws_auth = get_aws_auth(region, aos_secret)
-            
-            if aos_endpoint and aws_auth:
-                docsearch = OpenSearchVectorSearch(
-                    index_name=aos_index_name,
-                    embedding_function=embedding_function,
-                    opensearch_url="https://{}".format(aos_endpoint),
-                    http_auth=aws_auth,
-                    use_ssl=True,
-                    verify_certs=True,
-                    connection_class=RequestsHttpConnection,
-                )
-            else:
-                logger.warning("OpenSearch configuration not available")
-                docsearch = None
-        except Exception as e:
-            logger.warning(f"Could not initialize OpenSearch: {e}")
+        else:
+            logger.warning("OpenSearch configuration not available")
             docsearch = None
 
     s3_files_iterator, batch_processor, worker = create_processors_and_workers(
@@ -777,21 +750,18 @@ def lambda_handler(event, context):
     """
     try:
         logger.info(f"Received event: {json.dumps(event)}")
+        # body = {}
         
-        # Handle API Gateway request
-        http_method = event.get('httpMethod', '')
-        body = {}
-        
-        # Parse request body if present
-        if 'body' in event and event['body']:
-            try:
-                body = json.loads(event['body'])
-            except json.JSONDecodeError:
-                return {
-                    "statusCode": 400,
-                    "headers": {"Content-Type": "application/json"},
-                    "body": json.dumps({"error": "Invalid JSON in request body"})
-                }
+        # # Parse request body if present
+        # if 'body' in event and event['body']:
+        #     try:
+        #         body = json.loads(event['body'])
+        #     except json.JSONDecodeError:
+        #         return {
+        #             "statusCode": 400,
+        #             "headers": {"Content-Type": "application/json"},
+        #             "body": json.dumps({"error": "Invalid JSON in request body"})
+        #         }
         
         # Create a request object from the body or query parameters
         class Request:
@@ -799,37 +769,21 @@ def lambda_handler(event, context):
                 for key, value in data.items():
                     setattr(self, key, value)
         
-        # Use body for POST requests, query parameters for GET requests
-        query_params = event.get('queryStringParameters', {}) or {}
-        job_id = query_params.get('job_id', context.aws_request_id)
-        if http_method == 'GET':
-            request = Request(query_params)
-            
-            # For GET requests, return status information
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({
-                    "status": "success",
-                    "message": "ETL API is operational",
-                    "job_id": job_id
-                })
-            }
-        else:
-            request = Request(body)
-            
-            # Process the request
-            main(request, job_id)
-            
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "application/json"},
-                "body": json.dumps({
-                    "status": "success",
-                    "message": "ETL process started successfully",
-                    "job_id": job_id
-                })
-            }
+        job_id = context.aws_request_id
+        request = Request(event)
+        
+        # Process the request
+        main(request, job_id)
+        
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({
+                "status": "success",
+                "message": "ETL process started successfully",
+                "job_id": job_id
+            })
+        }
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         traceback.print_exc()
