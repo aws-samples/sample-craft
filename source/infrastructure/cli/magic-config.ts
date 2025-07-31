@@ -132,16 +132,11 @@ async function getAwsAccountAndRegion() {
         fs.readFileSync("./bin/config.json").toString("utf8")
       );
       options.prefix = config.prefix;
-      options.intelliAgentUserEmail = config.email;
       options.intelliAgentDeployRegion = config.deployRegion;
       options.enableKnowledgeBase = config.knowledgeBase.enabled;
       options.knowledgeBaseType = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled
         ? "intelliAgentKb"
-        : "bedrockKb";
-      options.intelliAgentUserEmail = config.email;
-      options.createNewVpc = config.vpc?.createNewVpc;
-      options.existingVpcId = config.vpc?.existingVpcId;
-      options.existingPrivateSubnetId = config.vpc?.existingPrivateSubnetId;
+        : "bedrockKb"; 
       options.intelliAgentKbVectorStoreType = config.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.enabled
         ? "opensearch"
         : "unsupported";

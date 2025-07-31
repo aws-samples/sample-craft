@@ -13,13 +13,10 @@
 
 import { Construct } from "constructs";
 import * as dotenv from "dotenv";
-import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as s3 from "aws-cdk-lib/aws-s3";
 
 import { SystemConfig } from "./types";
 import { IAMHelper } from "./iam-helper";
-import { VpcConstruct } from "./vpc-construct";
-import { SecurityGroup, IVpc, ISubnet } from 'aws-cdk-lib/aws-ec2';
 
 dotenv.config();
 
@@ -30,36 +27,21 @@ export interface SharedConstructProps {
 export interface SharedConstructOutputs {
   iamHelper: IAMHelper;
   resultBucket: s3.Bucket;
-  vpc: IVpc;
-  privateSubnets?: ISubnet[];
-  securityGroups?: SecurityGroup[];
 }
 
 export class SharedConstruct extends Construct implements SharedConstructOutputs {
   public iamHelper: IAMHelper;
   public resultBucket: s3.Bucket;
 
-  public vpc: IVpc;
-  public privateSubnets?: ISubnet[];
-  public securityGroups?: SecurityGroup[];
-
   constructor(scope: Construct, id: string, props: SharedConstructProps) {
     super(scope, id);
     console.log(props);
     const iamHelper = new IAMHelper(this, "iam-helper");
-    let vpcConstruct;
-
-    vpcConstruct = new VpcConstruct(this, "vpc-construct", {
-      config: props.config,
-    });
 
     const resultBucket = new s3.Bucket(this, "craft-result-bucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 
-    this.vpc = vpcConstruct.vpc;
-    this.privateSubnets = vpcConstruct.privateSubnets;
-    this.securityGroups = vpcConstruct.securityGroups;
     this.iamHelper = iamHelper;
     this.resultBucket = resultBucket;
   }
