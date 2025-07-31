@@ -103,7 +103,7 @@ async function getAwsAccountAndRegion() {
     const config = await loadSharedConfigFiles();
     AWS_REGION = config.configFile?.default?.region;
   } catch (error) {
-    console.error("No default region found in the AWS credentials file. Please enter the region you want to deploy the intelli-agent solution");
+    console.error("No default region found in the AWS credentials file. Please enter the region you want to deploy the solution");
     AWS_REGION = undefined;
   }
 
@@ -189,7 +189,7 @@ async function processCreateOptions(options: any): Promise<void> {
     {
       type: "input",
       name: "intelliAgentDeployRegion",
-      message: "Please enter the region you want to deploy the intelli-agent solution",
+      message: "Please enter the region you want to deploy the solution",
       initial: options.intelliAgentDeployRegion ?? AWS_REGION,
       validate(intelliAgentDeployRegion: string) {
         if (Object.values(supportedRegions).includes(intelliAgentDeployRegion)) {
@@ -209,16 +209,12 @@ async function processCreateOptions(options: any): Promise<void> {
       name: "enableIntelliAgentKbModel",
       message: "Do you want to extract PDF files or images?",
       initial: options.enableIntelliAgentKbModel ?? true,
-      skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb");
-      },
     },
     {
       type: "input",
       name: "knowledgeBaseModelEcrRepository",
       message: "Please enter the name of the ECR Repository for the knowledge base model",
-      initial: options.knowledgeBaseModelEcrRepository ?? "intelli-agent-knowledge-base",
+      initial: options.knowledgeBaseModelEcrRepository ?? "craft-model",
       validate(knowledgeBaseModelEcrRepository: string) {
         return (this as any).skipped ||
           RegExp(/^(?:[a-z0-9]+(?:[._-][a-z0-9]+)*)*[a-z0-9]+(?:[._-][a-z0-9]+)*$/i).test(knowledgeBaseModelEcrRepository)
@@ -226,9 +222,7 @@ async function processCreateOptions(options: any): Promise<void> {
           : "Enter a valid ECR Repository Name in the specified format: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*";
       },
       skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
-          !(this as any).state.answers.enableIntelliAgentKbModel);
+        return !(this as any).state.answers.enableIntelliAgentKbModel;
       },
     },
     {
@@ -243,22 +237,23 @@ async function processCreateOptions(options: any): Promise<void> {
           : "Enter a valid ECR Image Tag in the specified format: ";
       },
       skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
-          !(this as any).state.answers.enableIntelliAgentKbModel);
+        return !(this as any).state.answers.enableIntelliAgentKbModel;
       },
     },
     {
       type: "input",
       name: "sagemakerModelS3Bucket",
-      message: "Please enter the name of the S3 Bucket for the sagemaker models assets",
-      initial: `intelli-agent-models-${AWS_ACCOUNT}-${mandatoryQuestionAnswers.intelliAgentDeployRegion}`,
+      message: "Please enter the name of the S3 Bucket for the models assets",
+      initial: `craft-models-${AWS_ACCOUNT}-${mandatoryQuestionAnswers.intelliAgentDeployRegion}`,
       validate(sagemakerModelS3Bucket: string) {
         return (this as any).skipped ||
           RegExp(/^(?!(^xn--|.+-s3alias$))^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/i).test(sagemakerModelS3Bucket)
           ? true
           : "Enter a valid S3 Bucket Name in the specified format: (?!^xn--|.+-s3alias$)^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]";
-      }
+      },
+      skip(): boolean {
+        return !(this as any).state.answers.enableIntelliAgentKbModel;
+      },
     },
   ];
   const answers: any = await prompt(questions);
@@ -321,19 +316,7 @@ async function processCreateOptions(options: any): Promise<void> {
     },
   };
 
-  console.log("\n✨ This is the chosen configuration:\n");
-  console.log(JSON.stringify(config, undefined, 4));
-  (
-    (await prompt([
-      {
-        type: "confirm",
-        name: "create",
-        message:
-          "Do you want to create/update the configuration based on the above settings",
-        initial: true,
-      },
-    ])) as any
-  ).create
-    ? createConfig(config)
-    : console.log("Skipping");
+  createConfig(config)
+
+  console.log("\n The configuration has been saved to infrastructure/bin/config.json \n");
 }
