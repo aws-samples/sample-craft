@@ -185,7 +185,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
 
   private createCognitoResources() {
     // Create Cognito User Pool
-    this.cognitoUserPool = new cognito.UserPool(this, "ETLUserPool", {
+    this.cognitoUserPool = new cognito.UserPool(this, "CraftPool", {
       // userPoolName: "etl-${Aws.ACCOUNT_ID}",
       passwordPolicy: {
         minLength: 8,
