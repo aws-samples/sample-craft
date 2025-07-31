@@ -87,9 +87,9 @@ const devEnv = {
 };
 
 const app = new App();
-let stackName = "ai-customer-service"
+let stackName = "craft"
 if(config.prefix && config.prefix.trim().length > 0){
-  stackName = `${config.prefix}-ai-customer-service`;
+  stackName = `${config.prefix}-craft`;
 }
 
 new RootStack(app, stackName, {

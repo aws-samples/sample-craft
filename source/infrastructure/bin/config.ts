@@ -11,13 +11,7 @@ export function getConfig(): SystemConfig {
   // Default config
   return {
     prefix: "",
-    email: "support@example.com",
     deployRegion: "us-east-1",
-    vpc: {
-      createNewVpc: true,
-      existingVpcId: "",
-      existingPrivateSubnetId: "",
-    },
     knowledgeBase: {
       enabled: true,
       knowledgeBaseType: {

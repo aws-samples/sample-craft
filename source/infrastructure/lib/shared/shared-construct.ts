@@ -53,7 +53,7 @@ export class SharedConstruct extends Construct implements SharedConstructOutputs
       config: props.config,
     });
 
-    const resultBucket = new s3.Bucket(this, "ai-customer-service-result-bucket", {
+    const resultBucket = new s3.Bucket(this, "craft-result-bucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
     });
 

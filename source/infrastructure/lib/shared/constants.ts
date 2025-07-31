@@ -12,6 +12,6 @@
  *********************************************************************************************************************/
 
 export class Constants {
-  static readonly SOLUTION_NAME = "AI-Customer-Service";
+  static readonly SOLUTION_NAME = "Craft";
   static readonly SOLUTION_SHORT_NAME = "AICS";
 }

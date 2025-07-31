@@ -643,8 +643,6 @@ def main(request, job_id: str):
     aos_endpoint = get_param_value(getattr(request, 'aos_endpoint', None), "AOS_ENDPOINT", "")
     etl_endpoint_name = get_param_value(getattr(request, 'etl_endpoint_name', None), "ETL_MODEL_ENDPOINT", "")
     etl_object_table_name = get_param_value(getattr(request, 'etl_object_table_name', None), "ETL_OBJECT_TABLE", "")
-    print("lvning test")
-    print(etl_object_table_name)
     portal_bucket_name = get_param_value(getattr(request, 'portal_bucket_name', None), "PORTAL_BUCKET", "")
     bedrock_region = get_param_value(getattr(request, 'bedrock_region', None), "BEDROCK_REGION", "us-east-1")
     res_bucket = get_param_value(getattr(request, 'res_bucket', None), "RES_BUCKET", "")

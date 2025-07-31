@@ -185,8 +185,8 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
 
   private createCognitoResources() {
     // Create Cognito User Pool
-    this.cognitoUserPool = new cognito.UserPool(this, "AgentCoreUserPool", {
-      userPoolName: "sample-agentcore-gateway-pool",
+    this.cognitoUserPool = new cognito.UserPool(this, "ETLUserPool", {
+      // userPoolName: "etl-${Aws.ACCOUNT_ID}",
       passwordPolicy: {
         minLength: 8,
       },
@@ -194,34 +194,40 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     });
 
     // Create Resource Server
-    const resourceServer = this.cognitoUserPool.addResourceServer("AgentCoreResourceServer", {
-      identifier: "sample-agentcore-gateway-id",
+    const resourceServer = this.cognitoUserPool.addResourceServer("ETLResourceServer", {
+      identifier: "etl-gateway-id",
       // userPoolResourceServerName: "sample-agentcore-gateway-name",
       scopes: [
-        { scopeName: "gateway:read", scopeDescription: "Read access" },
-        { scopeName: "gateway:write", scopeDescription: "Write access" },
+        { scopeName: "genesis-gateway:invoke", scopeDescription: "Scope for invoking the genesis gateway" },
       ],
     });
 
-    // Create App Client for machine-to-machine authentication
-    this.cognitoClient = this.cognitoUserPool.addClient("AgentCoreClient", {
-      userPoolClientName: "sample-agentcore-gateway-client",
+    // Add domain for Hosted UI (classic)
+    const userPoolDomain = this.cognitoUserPool.addDomain("ETLUserDomain", {
+      cognitoDomain: {
+        domainPrefix: `etl-${Aws.ACCOUNT_ID}`,
+      },
+    });
+
+    // Create App Client with updated authentication flows
+    this.cognitoClient = this.cognitoUserPool.addClient("ETLClient", {
+      // userPoolClientName: "etl-${Aws.ACCOUNT_ID}",
       generateSecret: true,
       oAuth: {
         flows: {
           clientCredentials: true,
         },
         scopes: [
-          cognito.OAuthScope.resourceServer(resourceServer, { scopeName: "gateway:read", scopeDescription: "Read access" }),
-          cognito.OAuthScope.resourceServer(resourceServer, { scopeName: "gateway:write", scopeDescription: "Write access" }),
+          cognito.OAuthScope.resourceServer(resourceServer, { scopeName: "genesis-gateway:invoke", scopeDescription: "Scope for invoking the genesis gateway" }),
         ],
       },
       authFlows: {
+        userSrp: true,
+        custom: true,
         userPassword: false,
-        userSrp: false,
-        custom: false,
         adminUserPassword: false,
       },
+      refreshTokenValidity: Duration.days(30),
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
     });
   }
@@ -310,7 +316,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     const agentCoreGateway = new CustomResource(this, "AgentCoreGateway", {
       serviceToken: provider.serviceToken,
       properties: {
-        GatewayName: "etl-mcp-gateway",
+        GatewayName: "etl-gateway",
         Description: "AgentCore Gateway for ETL MCP tools",
         LambdaFunctionArn: lambdaFunction.functionArn
       }

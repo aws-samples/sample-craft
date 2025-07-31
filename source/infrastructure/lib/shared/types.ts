@@ -2,13 +2,7 @@ export type ModelProvider = "SageMaker" | "Bedrock" | "OpenAI API";
 
 export interface SystemConfig {
   prefix: string;
-  email: string;
   deployRegion: string;
-  vpc: {
-    createNewVpc: boolean;
-    existingVpcId: string;
-    existingPrivateSubnetId: string;
-  };
   knowledgeBase: {
     enabled: boolean;
     knowledgeBaseType: {

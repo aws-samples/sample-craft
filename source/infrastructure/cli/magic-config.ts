@@ -193,18 +193,6 @@ async function processCreateOptions(options: any): Promise<void> {
     },
     {
       type: "input",
-      name: "intelliAgentUserEmail",
-      message: "Please enter the name of the email you want to use for notifications",
-      initial: options.intelliAgentUserEmail ?? "support@example.com",
-      validate(intelliAgentUserEmail: string) {
-        return (this as any).skipped ||
-          RegExp(/^[a-zA-Z0-9]+([._-][0-9a-zA-Z]+)*@[a-zA-Z0-9]+([.-][0-9a-zA-Z]+)*\.[a-zA-Z]{2,}$/i).test(intelliAgentUserEmail)
-          ? true
-          : "Enter a valid email address in specified format: [a-zA-Z0-9]+([._-][0-9a-zA-Z]+)*@[a-zA-Z0-9]+([.-][0-9a-zA-Z]+)*\\.[a-zA-Z]{2,}";
-      },
-    },
-    {
-      type: "input",
       name: "intelliAgentDeployRegion",
       message: "Please enter the region you want to deploy the intelli-agent solution",
       initial: options.intelliAgentDeployRegion ?? AWS_REGION,
@@ -223,148 +211,8 @@ async function processCreateOptions(options: any): Promise<void> {
   let questions = [
     {
       type: "confirm",
-      name: "createNewVpc",
-      message: "Do you want to create a new VPC for this environment?",
-      initial: options.createNewVpc ?? true,
-    },
-    {
-      type: "input",
-      name: "existingVpcId",
-      message: "Please enter the VPC ID you want to use",
-      initial: options.existingVpcId ?? "",
-      validate(vpcId: string) {
-        return (this as any).skipped ||
-          RegExp(/^vpc-[a-f0-9]+$/).test(vpcId)
-          ? true
-          : "Enter a valid VPC ID (e.g., vpc-0123456789abcdef0)";
-      },
-      skip(): boolean {
-        return (this as any).state.answers.createNewVpc;
-      },
-    },
-    {
-      type: "input",
-      name: "existingPrivateSubnetId",
-      message: "Please enter the private subnet ID you want to use",
-      hint: "The solution can only be deployed in a VPC with a private subnet, and the private subnet must have a NAT gateway configured",
-      initial: options.existingPrivateSubnetId ?? "",
-      validate(subnetId: string) {
-        return (this as any).skipped ||
-          RegExp(/^subnet-[a-f0-9]+$/).test(subnetId)
-          ? true
-          : "Enter a valid subnet ID (e.g., subnet-0123456789abcdef0)";
-      },
-      skip(): boolean {
-        return (this as any).state.answers.createNewVpc;
-      },
-    },
-    {
-      type: "confirm",
-      name: "enableKnowledgeBase",
-      message: "Do you want to use knowledge base in this solution?",
-      initial: options.enableKnowledgeBase ?? true,
-    },
-    {
-      type: "select",
-      name: "knowledgeBaseType",
-      hint: "ENTER to confirm selection",
-      message: "Which knowledge base type do you want to use?",
-      choices: [
-        { message: "Intelli-Agent Knowledge Base", name: "intelliAgentKb" },
-        // { message: "Bedrock Knowledge Base (To Be Implemented)", name: "bedrockKb" },
-      ],
-      validate(value: string) {
-        if ((this as any).state.answers.enableKnowledgeBase) {
-          return value ? true : "Select a knowledge base type";
-        }
-        return true;
-      },
-      skip(): boolean {
-        return !(this as any).state.answers.enableKnowledgeBase;
-      },
-      initial: options.knowledgeBaseType ?? "intelliAgentKb",
-    },
-    {
-      type: "select",
-      name: "intelliAgentKbVectorStoreType",
-      hint: "ENTER to confirm selection",
-      message: "Which vector store type do you want to use?",
-      choices: [
-        { message: "OpenSearch", name: "opensearch" },
-      ],
-      validate(value: string) {
-        if ((this as any).state.answers.intelliAgentKbVectorStoreType) {
-          return value ? true : "Select a vector store type";
-        }
-
-        return true;
-      },
-      skip(): boolean {
-        return (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb");
-      },
-      initial: options.intelliAgentKbVectorStoreType ?? "opensearch",
-    },
-    {
-      type: "confirm",
-      name: "useCustomDomain",
-      message: "Do you want to use a custom domain for your knowledge base?",
-      initial: options.useCustomDomain ?? false,
-      skip(): boolean {
-        if (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
-          (this as any).state.answers.intelliAgentKbVectorStoreType !== "opensearch") {
-          return true;
-        }
-        return false;
-      },
-    },
-    {
-      type: "input",
-      name: "customDomainEndpoint",
-      message: "Please enter the endpoint of the custom domain",
-      initial: options.customDomainEndpoint ?? "",
-      validate(customDomainEndpoint: string) {
-        return (this as any).skipped ||
-          RegExp(/^https:\/\/[a-z0-9-]+.[a-z0-9-]{2,}\.es\.amazonaws\.com/).test(customDomainEndpoint)
-          ? true
-          : "Enter a valid OpenSearch domain endpoint (e.g., https://search-domain-region-id.region.es.amazonaws.com)";
-      },
-      skip(): boolean {
-        if (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
-          (this as any).state.answers.intelliAgentKbVectorStoreType !== "opensearch" ||
-          !(this as any).state.answers.useCustomDomain) {
-          return true;
-        }
-        return false;
-      },
-    },
-    {
-      type: "input",
-      name: "customDomainSecretArn",
-      message: "Please enter the secret arn containing the credentials for the custom domain",
-      initial: options.customDomainSecretArn ?? "",
-      validate(customDomainSecret: string) {
-        return (this as any).skipped ||
-          RegExp(/^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/_+=.@-]+$/i).test(customDomainSecret)
-          ? true
-          : "Enter a valid secret arn (e.g., arn:aws:secretsmanager:region:account-id:secret:my-secret-name)";
-      },
-      skip(): boolean {
-        if (!(this as any).state.answers.enableKnowledgeBase ||
-          (this as any).state.answers.knowledgeBaseType !== "intelliAgentKb" ||
-          (this as any).state.answers.intelliAgentKbVectorStoreType !== "opensearch" ||
-          !(this as any).state.answers.useCustomDomain) {
-          return true;
-        }
-        return false;
-      },
-    },
-    {
-      type: "confirm",
       name: "enableIntelliAgentKbModel",
-      message: "Do you want to inject PDF files into your knowledge base?",
+      message: "Do you want to extract PDF files or images?",
       initial: options.enableIntelliAgentKbModel ?? true,
       skip(): boolean {
         return (!(this as any).state.answers.enableKnowledgeBase ||
@@ -417,24 +265,6 @@ async function processCreateOptions(options: any): Promise<void> {
           : "Enter a valid S3 Bucket Name in the specified format: (?!^xn--|.+-s3alias$)^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]";
       }
     },
-    {
-      type: "confirm",
-      name: "useSageMakerVlm",
-      message: "Do you have a VLM model hosted on SageMaker?",
-      initial: options.useSageMakerVlm ?? false,
-      skip(): boolean {
-        return (!deployInChina);
-      },
-    },
-    {
-      type: "input",
-      name: "sagemakerVlmModelEndpoint",
-      message: "Please enter the endpoint of the SageMaker VLM model",
-      initial: options.sagemakerVlmModelEndpoint ?? "",
-      skip(): boolean {
-        return (!deployInChina || !(this as any).state.answers.useSageMakerVlm);
-      },
-    },
   ];
   const answers: any = await prompt(questions);
 
@@ -463,21 +293,15 @@ async function processCreateOptions(options: any): Promise<void> {
   // Create the config object
   const config = {
     prefix: mandatoryQuestionAnswers.prefix,
-    email: mandatoryQuestionAnswers.intelliAgentUserEmail,
     deployRegion: mandatoryQuestionAnswers.intelliAgentDeployRegion,
-    vpc: {
-      createNewVpc: answers.createNewVpc,
-      existingVpcId: answers.existingVpcId,
-      existingPrivateSubnetId: answers.existingPrivateSubnetId,
-    },
     knowledgeBase: {
-      enabled: answers.enableKnowledgeBase,
+      enabled: true,
       knowledgeBaseType: {
         intelliAgentKb: {
-          enabled: answers.knowledgeBaseType === "intelliAgentKb",
+          enabled: true,
           vectorStore: {
             opensearch: {
-              enabled: answers.intelliAgentKbVectorStoreType === "opensearch",
+              enabled: "opensearch",
               useCustomDomain: answers.useCustomDomain,
               customDomainEndpoint: answers.customDomainEndpoint,
               customDomainSecretArn: answers.customDomainSecretArn,
