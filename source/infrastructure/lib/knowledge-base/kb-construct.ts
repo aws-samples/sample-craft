@@ -15,9 +15,10 @@ import { Duration, StackProps, RemovalPolicy, CustomResource, Aws } from "aws-cd
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as lambda from "aws-cdk-lib/aws-lambda";
-import { DockerImageCode, DockerImageFunction } from "aws-cdk-lib/aws-lambda";
-import { Architecture } from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cr from "aws-cdk-lib/custom-resources";
 import * as cognito from "aws-cdk-lib/aws-cognito";
@@ -36,7 +37,8 @@ interface KnowledgeBaseStackProps extends StackProps {
 }
 
 export interface KnowledgeBaseStackOutputs {
-  readonly lambdaFunction: DockerImageFunction;
+  readonly ecsService: ecs.FargateService;
+  readonly loadBalancer: elbv2.ApplicationLoadBalancer;
   readonly executionTableName: string;
   readonly etlObjTableName: string;
   readonly etlObjIndexName: string;
@@ -46,7 +48,8 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
   public etlObjIndexName: string = "ExecutionIdIndex";
   public executionTableName: string = "";
   public etlObjTableName: string = "";
-  public lambdaFunction: DockerImageFunction;
+  public ecsService: ecs.FargateService;
+  public loadBalancer: elbv2.ApplicationLoadBalancer;
   private iamHelper: IAMHelper;
   private glueResultBucket: s3.Bucket;
   private dynamodbStatement: iam.PolicyStatement;
@@ -67,7 +70,9 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     this.etlObjTableName = createKnowledgeBaseTablesAndPoliciesResult.etlObjTable.tableName;
     this.dynamodbStatement = createKnowledgeBaseTablesAndPoliciesResult.dynamodbStatement;
 
-    this.lambdaFunction = this.createKnowledgeBaseLambda(props);
+    const { ecsService, loadBalancer } = this.createECSFargateService(props);
+    this.ecsService = ecsService;
+    this.loadBalancer = loadBalancer;
     
     // Create Cognito resources
     this.createCognitoResources();
@@ -76,7 +81,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     this.createAgentCoreGatewayRole();
     
     // Create AgentCore Gateway
-    this.createAgentCoreGateway(this.lambdaFunction);
+    this.createAgentCoreGateway(this.loadBalancer);
 
   }
 
@@ -120,22 +125,33 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     return { executionTable, etlObjTable, dynamodbStatement };
   }
   
-  private createKnowledgeBaseLambda(props: any): DockerImageFunction {
+  private createECSFargateService(props: any): { ecsService: ecs.FargateService; loadBalancer: elbv2.ApplicationLoadBalancer } {
     const deployRegion = props.config.deployRegion;
+
+    // Create VPC
+    const vpc = new ec2.Vpc(this, "ETLVpc", {
+      maxAzs: 2,
+      natGateways: 1,
+    });
+
+    // Create ECS Cluster
+    const cluster = new ecs.Cluster(this, "ETLCluster", {
+      vpc: vpc,
+    });
 
     // Create CloudWatch Log Group
     const logGroup = new logs.LogGroup(this, "ETLLogGroup", {
-      logGroupName: "/aws/lambda/knowledge-base-etl",
+      logGroupName: "/ecs/knowledge-base-etl",
       removalPolicy: RemovalPolicy.DESTROY,
       retention: logs.RetentionDays.ONE_WEEK,
     });
 
-    // Create Lambda Role
-    const lambdaRole = new iam.Role(this, "ETLLambdaRole", {
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    // Create ECS Task Role
+    const taskRole = new iam.Role(this, "ETLTaskRole", {
+      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
     });
     
-    lambdaRole.addToPrincipalPolicy(
+    taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: [
           "es:ESHttpGet",
@@ -151,25 +167,33 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     );
     
     // Add necessary policies
-    lambdaRole.addToPolicy(this.iamHelper.endpointStatement);
-    lambdaRole.addToPolicy(this.iamHelper.s3Statement);
-    lambdaRole.addToPolicy(this.iamHelper.logStatement);
-    lambdaRole.addToPolicy(this.dynamodbStatement);
-    lambdaRole.addToPolicy(this.iamHelper.dynamodbStatement);
-    lambdaRole.addToPolicy(this.iamHelper.secretsManagerStatement);
+    taskRole.addToPolicy(this.iamHelper.endpointStatement);
+    taskRole.addToPolicy(this.iamHelper.s3Statement);
+    taskRole.addToPolicy(this.iamHelper.logStatement);
+    taskRole.addToPolicy(this.dynamodbStatement);
+    taskRole.addToPolicy(this.iamHelper.dynamodbStatement);
+    taskRole.addToPolicy(this.iamHelper.secretsManagerStatement);
+
+    // Create ECS Task Execution Role
+    const executionRole = new iam.Role(this, "ETLExecutionRole", {
+      assumedBy: new iam.ServicePrincipal("ecs-tasks.amazonaws.com"),
+    });
     
-    // Add Lambda basic execution role
-    lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")
+    executionRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AmazonECSTaskExecutionRolePolicy")
     );
 
-    // Create Lambda Function using Docker container
-    const lambdaFunction = new DockerImageFunction(this, "ETLLambdaFunction", {
-      code: DockerImageCode.fromImageAsset("../lambda/job"),
-      architecture: Architecture.X86_64,
-      role: lambdaRole,
-      timeout: Duration.minutes(15),
-      memorySize: 1024,
+    // Create Task Definition
+    const taskDefinition = new ecs.FargateTaskDefinition(this, "ETLTaskDefinition", {
+      memoryLimitMiB: 2048,
+      cpu: 1024,
+      taskRole: taskRole,
+      executionRole: executionRole,
+    });
+
+    // Add container to task definition
+    const container = taskDefinition.addContainer("ETLContainer", {
+      image: ecs.ContainerImage.fromAsset("../lambda/job"),
       environment: {
         DEPLOY_REGION: deployRegion,
         ETL_MODEL_ENDPOINT: props.modelConstructOutputs.defaultKnowledgeBaseModelName,
@@ -177,10 +201,53 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         ETL_OBJECT_TABLE: this.etlObjTableName || "-",
         BEDROCK_REGION: deployRegion,
       },
-      logGroup: logGroup,
+      logging: ecs.LogDrivers.awsLogs({
+        streamPrefix: "etl",
+        logGroup: logGroup,
+      }),
     });
 
-    return lambdaFunction;
+    container.addPortMappings({
+      containerPort: 8080,
+      protocol: ecs.Protocol.TCP,
+    });
+
+    // Create Fargate Service
+    const service = new ecs.FargateService(this, "ETLService", {
+      cluster: cluster,
+      taskDefinition: taskDefinition,
+      desiredCount: 1,
+      assignPublicIp: false,
+    });
+
+    // Create Application Load Balancer
+    const loadBalancer = new elbv2.ApplicationLoadBalancer(this, "ETLLoadBalancer", {
+      vpc: vpc,
+      internetFacing: true,
+    });
+
+    // Create Target Group
+    const targetGroup = new elbv2.ApplicationTargetGroup(this, "ETLTargetGroup", {
+      port: 8080,
+      vpc: vpc,
+      protocol: elbv2.ApplicationProtocol.HTTP,
+      targetType: elbv2.TargetType.IP,
+      healthCheck: {
+        path: "/health",
+        healthyHttpCodes: "200",
+      },
+    });
+
+    // Add targets to target group
+    service.attachToApplicationTargetGroup(targetGroup);
+
+    // Create Listener
+    loadBalancer.addListener("ETLListener", {
+      port: 80,
+      defaultTargetGroups: [targetGroup],
+    });
+
+    return { ecsService: service, loadBalancer: loadBalancer };
   }
 
   private createCognitoResources() {
@@ -252,8 +319,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
                 "bedrock:*",
                 "agent-credential-provider:*",
                 "iam:PassRole",
-                "secretsmanager:GetSecretValue",
-                "lambda:InvokeFunction"
+                "secretsmanager:GetSecretValue"
               ],
               resources: ["*"]
             })
@@ -263,7 +329,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     });
   }
 
-  private createAgentCoreGateway(lambdaFunction: DockerImageFunction) {
+  private createAgentCoreGateway(loadBalancer: elbv2.ApplicationLoadBalancer) {
     // Create custom resource Lambda for AgentCore Gateway management
     const agentCoreCustomResourceLambda = new lambda.Function(this, "AgentCoreCustomResource", {
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -279,7 +345,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         },
       }),
       environment: {
-        TARGET_LAMBDA_ARN: lambdaFunction.functionArn,
+        TARGET_ALB_URL: `http://${loadBalancer.loadBalancerDnsName}`,
         COGNITO_USER_POOL_ID: this.cognitoUserPool.userPoolId,
         COGNITO_CLIENT_ID: this.cognitoClient.userPoolClientId,
         AGENTCORE_ROLE_ARN: this.agentCoreGatewayRole.roleArn
@@ -290,7 +356,6 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       new iam.PolicyStatement({
         actions: [
           "bedrock-agentcore:*",
-          "lambda:InvokeFunction",
           "iam:PassRole",
           "iam:GetRole",
           "iam:ListRoles",
@@ -318,7 +383,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       properties: {
         GatewayName: "etl-gateway",
         Description: "AgentCore Gateway for ETL MCP tools",
-        LambdaFunctionArn: lambdaFunction.functionArn
+        LoadBalancerUrl: `http://${loadBalancer.loadBalancerDnsName}`
       }
     });
 
