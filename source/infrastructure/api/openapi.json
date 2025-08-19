@@ -1,0 +1,224 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ETL Processing Service API",
+    "description": "API for processing ETL operations with ECS Fargate",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check endpoint",
+        "description": "Returns the health status of the service",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/process": {
+      "post": {
+        "summary": "Process ETL request",
+        "description": "Initiates an ETL processing job",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ETLRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ETL process started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ETLResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Service information",
+        "description": "Returns basic service information and available endpoints",
+        "responses": {
+          "200": {
+            "description": "Service information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "type": "string"
+                    },
+                    "endpoints": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key"
+      }
+    },
+    "schemas": {
+      "ETLRequest": {
+        "type": "object",
+        "properties": {
+          "s3_bucket": {
+            "type": "string",
+            "description": "S3 bucket name"
+          },
+          "s3_prefix": {
+            "type": "string",
+            "description": "S3 object prefix"
+          },
+          "operation_type": {
+            "type": "string",
+            "enum": ["create", "delete", "update", "extract_only"],
+            "description": "Type of ETL operation"
+          },
+          "batch_file_number": {
+            "type": "string",
+            "description": "Number of files to process in batch"
+          },
+          "batch_indice": {
+            "type": "string",
+            "description": "Batch index"
+          },
+          "document_language": {
+            "type": "string",
+            "description": "Document language"
+          },
+          "index_type": {
+            "type": "string",
+            "description": "Index type"
+          },
+          "aos_endpoint": {
+            "type": "string",
+            "description": "OpenSearch endpoint"
+          },
+          "etl_endpoint_name": {
+            "type": "string",
+            "description": "ETL model endpoint name"
+          },
+          "etl_object_table_name": {
+            "type": "string",
+            "description": "ETL object table name"
+          },
+          "portal_bucket_name": {
+            "type": "string",
+            "description": "Portal bucket name"
+          },
+          "bedrock_region": {
+            "type": "string",
+            "description": "Bedrock region"
+          },
+          "res_bucket": {
+            "type": "string",
+            "description": "Result bucket name"
+          },
+          "aos_index_name": {
+            "type": "string",
+            "description": "OpenSearch index name"
+          }
+        }
+      },
+      "ETLResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "message": {
+            "type": "string",
+            "example": "ETL process completed successfully"
+          },
+          "job_id": {
+            "type": "string",
+            "example": "12345678-1234-1234-1234-123456789012"
+          }
+        },
+        "required": ["status", "message", "job_id"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "error"
+          },
+          "message": {
+            "type": "string",
+            "example": "Error description"
+          }
+        },
+        "required": ["status", "message"]
+      }
+    }
+  }
+}

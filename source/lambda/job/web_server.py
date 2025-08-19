@@ -1,16 +1,20 @@
 import json
 import logging
 import uuid
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from main import main
+from utils.api_key_validator import APIKeyValidator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ETL Processing Service")
+security = HTTPBearer()
+api_validator = APIKeyValidator()
 
 class ETLRequest(BaseModel):
     s3_bucket: Optional[str] = None
@@ -39,13 +43,23 @@ class Context:
     def __init__(self):
         self.aws_request_id = str(uuid.uuid4())
 
+def validate_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Validate API key from Authorization header"""
+    if not api_validator.validate_api_key(credentials.credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return credentials.credentials
+
 @app.get("/health")
 def health_check():
     """Health check endpoint for ALB"""
     return {"status": "healthy"}
 
 @app.post("/process")
-async def process_etl(etl_request: ETLRequest, request: Request):
+async def process_etl(etl_request: ETLRequest, request: Request, api_key: str = Depends(validate_api_key)):
     """Main ETL processing endpoint"""
     try:
         # Convert request to dict

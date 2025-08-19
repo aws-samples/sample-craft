@@ -15,6 +15,7 @@ import { Duration, StackProps, RemovalPolicy, CustomResource, Aws } from "aws-cd
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
+import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
@@ -22,6 +23,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as cr from "aws-cdk-lib/custom-resources";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
 import { DynamoDBTable } from "../shared/table";
 import { IAMHelper } from "../shared/iam-helper";
@@ -70,7 +72,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     this.etlObjTableName = createKnowledgeBaseTablesAndPoliciesResult.etlObjTable.tableName;
     this.dynamodbStatement = createKnowledgeBaseTablesAndPoliciesResult.dynamodbStatement;
 
-    const { ecsService, loadBalancer } = this.createECSFargateService(props);
+    const { ecsService, loadBalancer, apiKeySecret } = this.createECSFargateService(props);
     this.ecsService = ecsService;
     this.loadBalancer = loadBalancer;
     
@@ -81,7 +83,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     this.createAgentCoreGatewayRole();
     
     // Create AgentCore Gateway
-    this.createAgentCoreGateway(this.loadBalancer);
+    this.createAgentCoreGateway(this.loadBalancer, apiKeySecret);
 
   }
 
@@ -125,8 +127,20 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     return { executionTable, etlObjTable, dynamodbStatement };
   }
   
-  private createECSFargateService(props: any): { ecsService: ecs.FargateService; loadBalancer: elbv2.ApplicationLoadBalancer } {
+  private createECSFargateService(props: any): { ecsService: ecs.FargateService; loadBalancer: elbv2.ApplicationLoadBalancer; apiKeySecret: secretsmanager.Secret } {
     const deployRegion = props.config.deployRegion;
+
+    // Generate API key and store in Secrets Manager
+    const apiKeySecret = new secretsmanager.Secret(this, "ETLAPIKeySecret", {
+      description: "API key for ETL service authentication",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({ username: "etl-service" }),
+        generateStringKey: "api_key",
+        excludeCharacters: " %+~`#$&*()|[]{}:;<>?!'/@\"\\\n\r\t",
+        passwordLength: 32,
+      },
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
 
     // Create VPC
     const vpc = new ec2.Vpc(this, "ETLVpc", {
@@ -200,12 +214,16 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         RES_BUCKET: this.glueResultBucket.bucketName,
         ETL_OBJECT_TABLE: this.etlObjTableName || "-",
         BEDROCK_REGION: deployRegion,
+        API_KEY_SECRET_ARN: apiKeySecret.secretArn,
       },
       logging: ecs.LogDrivers.awsLogs({
         streamPrefix: "etl",
         logGroup: logGroup,
       }),
     });
+
+    // Grant the task role permission to read the API key secret
+    apiKeySecret.grantRead(taskRole);
 
     container.addPortMappings({
       containerPort: 8080,
@@ -247,7 +265,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       defaultTargetGroups: [targetGroup],
     });
 
-    return { ecsService: service, loadBalancer: loadBalancer };
+    return { ecsService: service, loadBalancer: loadBalancer, apiKeySecret: apiKeySecret };
   }
 
   private createCognitoResources() {
@@ -329,7 +347,19 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     });
   }
 
-  private createAgentCoreGateway(loadBalancer: elbv2.ApplicationLoadBalancer) {
+  private createAgentCoreGateway(loadBalancer: elbv2.ApplicationLoadBalancer, apiKeySecret: secretsmanager.Secret) {
+    // Create S3 bucket for OpenAPI spec
+    const apiBucket = new s3.Bucket(this, "APIBucket", {
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // Upload openapi.json to S3 bucket
+    new s3deploy.BucketDeployment(this, "APIDeployment", {
+      sources: [s3deploy.Source.asset("api")],
+      destinationBucket: apiBucket,
+    });
+
     // Create custom resource Lambda for AgentCore Gateway management
     const agentCoreCustomResourceLambda = new lambda.Function(this, "AgentCoreCustomResource", {
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -348,7 +378,9 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         TARGET_ALB_URL: `http://${loadBalancer.loadBalancerDnsName}`,
         COGNITO_USER_POOL_ID: this.cognitoUserPool.userPoolId,
         COGNITO_CLIENT_ID: this.cognitoClient.userPoolClientId,
-        AGENTCORE_ROLE_ARN: this.agentCoreGatewayRole.roleArn
+        AGENTCORE_ROLE_ARN: this.agentCoreGatewayRole.roleArn,
+        OPENAPI_FILE_ARN: `s3://${apiBucket.bucketName}/openapi.json`,
+        API_KEY_SECRET_ARN: apiKeySecret.secretArn
       }
     });
     
@@ -360,11 +392,20 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
           "iam:GetRole",
           "iam:ListRoles",
           "cognito-idp:*",
-          "logs:*"
+          "logs:*",
+          "s3:GetObject",
+          "secretsmanager:CreateSecret",
+          "secretsmanager:GetSecretValue"
         ],
         resources: ["*"]
       })
     );
+    
+    // Grant S3 read access to the Lambda
+    apiBucket.grantRead(agentCoreCustomResourceLambda);
+    
+    // Grant permission to read the API key secret
+    apiKeySecret.grantRead(agentCoreCustomResourceLambda);
     
     // Grant permission to pass the AgentCore gateway role
     this.agentCoreGatewayRole.grantPassRole(agentCoreCustomResourceLambda.role!);
