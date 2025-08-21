@@ -11,7 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Duration, StackProps, RemovalPolicy, Aws } from "aws-cdk-lib";
+import { Duration, StackProps, RemovalPolicy, Aws, CfnOutput } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -24,6 +24,8 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import { Construct } from "constructs";
 import { DynamoDBTable } from "../shared/table";
 import { IAMHelper } from "../shared/iam-helper";
@@ -259,41 +261,37 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       },
     });
 
-    // Add targets to target group
+    // Add targets to target group first
     service.attachToApplicationTargetGroup(targetGroup);
 
-    // Conditional HTTPS setup
-    if (props.enableHttps) {
-      // Create certificate with DNS validation
-      const certificate = new acm.Certificate(this, "ETLCertificate", {
-        domainName: loadBalancer.loadBalancerDnsName,
-        validation: acm.CertificateValidation.fromDns(),
-      });
+    // Create HTTP Listener with target group
+    loadBalancer.addListener("ETLHTTPListener", {
+      port: 80,
+      defaultTargetGroups: [targetGroup],
+    });
 
-      // Create HTTPS Listener
-      loadBalancer.addListener("ETLHTTPSListener", {
-        port: 443,
-        certificates: [certificate],
-        defaultTargetGroups: [targetGroup],
-      });
 
-      // Redirect HTTP to HTTPS
-      loadBalancer.addListener("ETLHTTPListener", {
-        port: 80,
-        defaultAction: elbv2.ListenerAction.redirect({
-          protocol: "HTTPS",
-          port: "443",
+
+    // Create CloudFront distribution
+    const distribution = new cloudfront.Distribution(this, "ETLDistribution", {
+      defaultBehavior: {
+        origin: new origins.LoadBalancerV2Origin(loadBalancer, {
+          protocolPolicy: cloudfront.OriginProtocolPolicy.HTTP_ONLY,
+          httpPort: 80,
         }),
-      });
-    } else {
-      // HTTP only
-      loadBalancer.addListener("ETLHTTPListener", {
-        port: 80,
-        defaultTargetGroups: [targetGroup],
-      });
-    }
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
+        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER,
+      },
+    });
 
-
+    // Output CloudFront URL for setup script
+    new CfnOutput(this, "CloudFrontURL", {
+      value: `https://${distribution.distributionDomainName}`,
+      description: "CloudFront HTTPS URL (use in setup-https-and-gateway.sh)"
+    });
 
     return { ecsService: service, loadBalancer: loadBalancer, apiKeySecret: apiKeySecret };
   }
@@ -423,7 +421,8 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
           "cognito-idp:*",
           "logs:*",
           "s3:GetObject",
-          "secretsmanager:GetSecretValue"
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:CreateSecret"
         ],
         resources: ["*"]
       })
@@ -437,6 +436,17 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     
     // Grant permission to pass the AgentCore gateway role
     this.agentCoreGatewayRole.grantPassRole(agentCoreGatewayLambda.role!);
+
+    // Output S3 bucket name and Lambda function name for setup script
+    new CfnOutput(this, "APIBucketName", {
+      value: apiBucket.bucketName,
+      description: "S3 bucket name for OpenAPI spec (use in setup-https-and-gateway.sh)"
+    });
+
+    new CfnOutput(this, "AgentCoreGatewayLambdaName", {
+      value: agentCoreGatewayLambda.functionName,
+      description: "Lambda function name for AgentCore Gateway (use in setup-https-and-gateway.sh)"
+    });
 
     return agentCoreGatewayLambda;
   }
