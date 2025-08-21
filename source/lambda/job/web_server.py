@@ -2,7 +2,6 @@ import json
 import logging
 import uuid
 from fastapi import FastAPI, Request, HTTPException, Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from main import main
@@ -13,7 +12,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ETL Processing Service")
-security = HTTPBearer()
 api_validator = APIKeyValidator()
 
 class ETLRequest(BaseModel):
@@ -43,15 +41,30 @@ class Context:
     def __init__(self):
         self.aws_request_id = str(uuid.uuid4())
 
-def validate_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def validate_api_key(request: Request):
     """Validate API key from Authorization header"""
-    if not api_validator.validate_api_key(credentials.credentials):
+    auth_header = request.headers.get("Authorization")
+    logger.info(f"Received Authorization header: {auth_header[:10] + '...' if auth_header else 'None'}")
+    
+    if not auth_header:
+        logger.warning("Missing Authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header",
+        )
+    
+    is_valid = api_validator.validate_api_key(auth_header)
+    logger.info(f"API key validation result: {is_valid}")
+    
+    if not is_valid:
+        logger.warning(f"Invalid API key provided: {auth_header[:10] + '...'}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
-            headers={"WWW-Authenticate": "Bearer"},
         )
-    return credentials.credentials
+    
+    logger.info("API key validation successful")
+    return auth_header
 
 @app.get("/health")
 def health_check():
@@ -90,6 +103,41 @@ async def process_etl(etl_request: ETLRequest, request: Request, api_key: str = 
             "status": "error",
             "message": str(e)
         }
+
+
+@app.post("/process-pure")
+async def process_etl_pure(etl_request: ETLRequest, request: Request):
+    """Main ETL processing endpoint"""
+    try:
+        # Convert request to dict
+        data = etl_request.dict(exclude_none=True)
+        
+        # Add query parameters to data
+        query_params = dict(request.query_params)
+        data.update(query_params)
+        
+        logger.info(f"Received request: {json.dumps(data)}")
+        
+        # Create request and context objects
+        req = RequestObj(data)
+        context = Context()
+        
+        # Process the request
+        main(req, context.aws_request_id)
+        
+        return {
+            "status": "success",
+            "message": "ETL process completed successfully",
+            "job_id": context.aws_request_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 
 @app.get("/")
 def root():

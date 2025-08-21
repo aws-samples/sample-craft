@@ -35,6 +35,8 @@ def get_cognito_discovery_url():
     return COGNITO_CLIENT_ID, cognito_discovery_url
 
 
+
+
 def handler(event, context):
     request_type = event['RequestType']
     
@@ -50,8 +52,14 @@ def handler(event, context):
             client_id, cognito_discovery_url = get_cognito_discovery_url()
             gateway_client = boto3.client('bedrock-agentcore-control', region_name=REGION)
 
+            # Generate unique names using timestamp
+            import time
+            unique_suffix = str(int(time.time()))
+            api_key_name = f"CraftAPIKey-{unique_suffix}"
+            gateway_name = f"craft-gateway-{unique_suffix}"
+            
             response=gateway_client.create_api_key_credential_provider(
-                name="CraftAPIKey",
+                name=api_key_name,
                 apiKey=api_key,
             )
             credentialProviderARN = response['credentialProviderArn']
@@ -64,7 +72,7 @@ def handler(event, context):
             }
             
             create_response = gateway_client.create_gateway(
-                name='craft-gateway',
+                name=gateway_name,
                 roleArn=AGENTCORE_ROLE_ARN,
                 protocolType='MCP',
                 authorizerType='CUSTOM_JWT',
@@ -98,9 +106,11 @@ def handler(event, context):
                 }
             ]
 
+            target_name = f"CraftOpenAPITarget-{unique_suffix}"
+            
             response = gateway_client.create_gateway_target(
                 gatewayIdentifier=gatewayID,
-                name='CraftOpenAPITarget',
+                name=target_name,
                 description='OpenAPI Target for CRAFT tools',
                 targetConfiguration=openapi_s3_target_config,
                 credentialProviderConfigurations=api_key_credential_config)

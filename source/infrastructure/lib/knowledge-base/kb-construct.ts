@@ -11,7 +11,7 @@
  *  and limitations under the License.                                                                                *
  *********************************************************************************************************************/
 
-import { Duration, StackProps, RemovalPolicy, CustomResource, Aws } from "aws-cdk-lib";
+import { Duration, StackProps, RemovalPolicy, Aws } from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -21,9 +21,9 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as cr from "aws-cdk-lib/custom-resources";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import { Construct } from "constructs";
 import { DynamoDBTable } from "../shared/table";
 import { IAMHelper } from "../shared/iam-helper";
@@ -36,6 +36,7 @@ interface KnowledgeBaseStackProps extends StackProps {
   readonly sharedConstructOutputs: SharedConstructOutputs
   readonly modelConstructOutputs: ModelConstructOutputs;
   readonly uiPortalBucketName?: string;
+  readonly enableHttps?: boolean;
 }
 
 export interface KnowledgeBaseStackOutputs {
@@ -44,6 +45,7 @@ export interface KnowledgeBaseStackOutputs {
   readonly executionTableName: string;
   readonly etlObjTableName: string;
   readonly etlObjIndexName: string;
+  readonly agentCoreGatewayLambda: lambda.Function;
 }
 
 export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackOutputs {
@@ -52,6 +54,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
   public etlObjTableName: string = "";
   public ecsService: ecs.FargateService;
   public loadBalancer: elbv2.ApplicationLoadBalancer;
+  public agentCoreGatewayLambda: lambda.Function;
   private iamHelper: IAMHelper;
   private glueResultBucket: s3.Bucket;
   private dynamodbStatement: iam.PolicyStatement;
@@ -82,8 +85,8 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     // Create AgentCore Gateway IAM role
     this.createAgentCoreGatewayRole();
     
-    // Create AgentCore Gateway
-    this.createAgentCoreGateway(this.loadBalancer, apiKeySecret);
+    // Create AgentCore Gateway Lambda
+    this.agentCoreGatewayLambda = this.createAgentCoreGateway(apiKeySecret);
 
   }
 
@@ -259,11 +262,38 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     // Add targets to target group
     service.attachToApplicationTargetGroup(targetGroup);
 
-    // Create Listener
-    loadBalancer.addListener("ETLListener", {
-      port: 80,
-      defaultTargetGroups: [targetGroup],
-    });
+    // Conditional HTTPS setup
+    if (props.enableHttps) {
+      // Create certificate with DNS validation
+      const certificate = new acm.Certificate(this, "ETLCertificate", {
+        domainName: loadBalancer.loadBalancerDnsName,
+        validation: acm.CertificateValidation.fromDns(),
+      });
+
+      // Create HTTPS Listener
+      loadBalancer.addListener("ETLHTTPSListener", {
+        port: 443,
+        certificates: [certificate],
+        defaultTargetGroups: [targetGroup],
+      });
+
+      // Redirect HTTP to HTTPS
+      loadBalancer.addListener("ETLHTTPListener", {
+        port: 80,
+        defaultAction: elbv2.ListenerAction.redirect({
+          protocol: "HTTPS",
+          port: "443",
+        }),
+      });
+    } else {
+      // HTTP only
+      loadBalancer.addListener("ETLHTTPListener", {
+        port: 80,
+        defaultTargetGroups: [targetGroup],
+      });
+    }
+
+
 
     return { ecsService: service, loadBalancer: loadBalancer, apiKeySecret: apiKeySecret };
   }
@@ -347,23 +377,23 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     });
   }
 
-  private createAgentCoreGateway(loadBalancer: elbv2.ApplicationLoadBalancer, apiKeySecret: secretsmanager.Secret) {
+  private createAgentCoreGateway(apiKeySecret: secretsmanager.Secret): lambda.Function {
     // Create S3 bucket for OpenAPI spec
     const apiBucket = new s3.Bucket(this, "APIBucket", {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
 
-    // Upload openapi.json to S3 bucket
+    // Upload original OpenAPI spec first
     new s3deploy.BucketDeployment(this, "APIDeployment", {
       sources: [s3deploy.Source.asset("api")],
       destinationBucket: apiBucket,
     });
 
-    // Create custom resource Lambda for AgentCore Gateway management
-    const agentCoreCustomResourceLambda = new lambda.Function(this, "AgentCoreCustomResource", {
+    // Create Lambda function for AgentCore Gateway management
+    const agentCoreGatewayLambda = new lambda.Function(this, "AgentCoreGatewayLambda", {
       runtime: lambda.Runtime.PYTHON_3_12,
-      handler: "custom_resource.handler",
+      handler: "gateway_manager.handler",
       timeout: Duration.minutes(10),
       code: lambda.Code.fromAsset("../lambda/agentcore_gateway", {
         bundling: {
@@ -375,7 +405,6 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
         },
       }),
       environment: {
-        TARGET_ALB_URL: `http://${loadBalancer.loadBalancerDnsName}`,
         COGNITO_USER_POOL_ID: this.cognitoUserPool.userPoolId,
         COGNITO_CLIENT_ID: this.cognitoClient.userPoolClientId,
         AGENTCORE_ROLE_ARN: this.agentCoreGatewayRole.roleArn,
@@ -384,7 +413,7 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       }
     });
     
-    agentCoreCustomResourceLambda.addToRolePolicy(
+    agentCoreGatewayLambda.addToRolePolicy(
       new iam.PolicyStatement({
         actions: [
           "bedrock-agentcore:*",
@@ -394,7 +423,6 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
           "cognito-idp:*",
           "logs:*",
           "s3:GetObject",
-          "secretsmanager:CreateSecret",
           "secretsmanager:GetSecretValue"
         ],
         resources: ["*"]
@@ -402,32 +430,14 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
     );
     
     // Grant S3 read access to the Lambda
-    apiBucket.grantRead(agentCoreCustomResourceLambda);
+    apiBucket.grantRead(agentCoreGatewayLambda);
     
     // Grant permission to read the API key secret
-    apiKeySecret.grantRead(agentCoreCustomResourceLambda);
+    apiKeySecret.grantRead(agentCoreGatewayLambda);
     
     // Grant permission to pass the AgentCore gateway role
-    this.agentCoreGatewayRole.grantPassRole(agentCoreCustomResourceLambda.role!);
+    this.agentCoreGatewayRole.grantPassRole(agentCoreGatewayLambda.role!);
 
-    // Create custom resource provider
-    const provider = new cr.Provider(this, "AgentCoreProvider", {
-      onEventHandler: agentCoreCustomResourceLambda,
-    });
-    
-    // Ensure the custom resource depends on the gateway role
-    provider.node.addDependency(this.agentCoreGatewayRole);
-
-    // Create the custom resource
-    const agentCoreGateway = new CustomResource(this, "AgentCoreGateway", {
-      serviceToken: provider.serviceToken,
-      properties: {
-        GatewayName: "etl-gateway",
-        Description: "AgentCore Gateway for ETL MCP tools",
-        LoadBalancerUrl: `http://${loadBalancer.loadBalancerDnsName}`
-      }
-    });
-
-    return agentCoreGateway;
+    return agentCoreGatewayLambda;
   }
 }
