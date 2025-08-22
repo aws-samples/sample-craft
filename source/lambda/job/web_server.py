@@ -15,20 +15,10 @@ app = FastAPI(title="ETL Processing Service")
 api_validator = APIKeyValidator()
 
 class ETLRequest(BaseModel):
-    s3_bucket: Optional[str] = None
-    s3_prefix: Optional[str] = None
+    s3_bucket: str = None
+    s3_prefix: str = None
     operation_type: Optional[str] = None
-    batch_file_number: Optional[str] = None
-    batch_indice: Optional[str] = None
-    document_language: Optional[str] = None
-    index_type: Optional[str] = None
-    aos_endpoint: Optional[str] = None
-    etl_endpoint_name: Optional[str] = None
-    etl_object_table_name: Optional[str] = None
-    portal_bucket_name: Optional[str] = None
-    bedrock_region: Optional[str] = None
     res_bucket: Optional[str] = None
-    aos_index_name: Optional[str] = None
 
 class RequestObj:
     """Request object to mimic Lambda event structure"""
@@ -44,7 +34,6 @@ class Context:
 def validate_api_key(request: Request):
     """Validate API key from Authorization header"""
     auth_header = request.headers.get("Authorization")
-    logger.info(f"Received Authorization header: {auth_header[:10] + '...' if auth_header else 'None'}")
     
     if not auth_header:
         logger.warning("Missing Authorization header")
