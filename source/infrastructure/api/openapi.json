@@ -5,28 +5,37 @@
         "version": "0.1.0"
     },
     "paths": {
-        "/health": {
-            "get": {
-                "summary": "Health Check",
-                "description": "Health check endpoint for ALB",
-                "operationId": "health_check_health_get",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/process": {
             "post": {
-                "summary": "Process Etl",
+                "summary": "Extract information from a file",
                 "description": "Main ETL processing endpoint",
-                "operationId": "process_etl_process_post",
+                "operationId": "extract_file",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "s3_bucket",
+                                    "s3_prefix"
+                                ],
+                                "properties": {
+                                    "s3_bucket": {
+                                        "type": "string",
+                                        "title": "S3 Bucket"
+                                    },
+                                    "s3_prefix": {
+                                        "type": "string",
+                                        "title": "S3 Prefix"
+                                    }
+                                },
+                                "title": "ETLRequest",
+                                "description": "Request model for ETL processing"
+                            }
+                        }
+                    },
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "description": "Successful Response",

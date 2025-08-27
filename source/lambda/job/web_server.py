@@ -63,7 +63,7 @@ def health_check():
     return {"status": "healthy"}
 
 @app.post("/process")
-async def process_etl(etl_request: Request, api_key: str = Depends(validate_api_key)):
+async def process_etl(etl_request: ETLRequest, api_key: str = Depends(validate_api_key)):
     """Main ETL processing endpoint"""
     logger.info(f"process_etl called with etl_request: {etl_request}")
     try:
