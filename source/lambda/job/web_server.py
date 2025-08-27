@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, Request, status, Header
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from main import main
@@ -14,11 +14,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="ETL Processing Service")
 api_validator = APIKeyValidator()
 
+
 class ETLRequest(BaseModel):
-    s3_bucket: str = None
-    s3_prefix: str = None
-    operation_type: Optional[str] = None
-    res_bucket: Optional[str] = None
+    """Request model for ETL processing"""
+    s3_bucket: str
+    s3_prefix: str
+
 
 class RequestObj:
     """Request object to mimic Lambda event structure"""
@@ -31,9 +32,10 @@ class Context:
     def __init__(self):
         self.aws_request_id = str(uuid.uuid4())
 
-def validate_api_key(request: Request):
+def validate_api_key(authorization: str = Header(None, alias="Authorization")):
     """Validate API key from Authorization header"""
-    auth_header = request.headers.get("Authorization")
+    logger.info(f"validate_api_key called with authorization: {authorization[:10] + '...' if authorization else 'None'}")
+    auth_header = authorization
     
     if not auth_header:
         logger.warning("Missing Authorization header")
@@ -61,15 +63,12 @@ def health_check():
     return {"status": "healthy"}
 
 @app.post("/process")
-async def process_etl(etl_request: ETLRequest, request: Request, api_key: str = Depends(validate_api_key)):
+async def process_etl(etl_request: Request, api_key: str = Depends(validate_api_key)):
     """Main ETL processing endpoint"""
+    logger.info(f"process_etl called with etl_request: {etl_request}")
     try:
         # Convert request to dict
         data = etl_request.dict(exclude_none=True)
-        
-        # Add query parameters to data
-        query_params = dict(request.query_params)
-        data.update(query_params)
         
         logger.info(f"Received request: {json.dumps(data)}")
         
@@ -95,15 +94,11 @@ async def process_etl(etl_request: ETLRequest, request: Request, api_key: str = 
 
 
 @app.post("/process-pure")
-async def process_etl_pure(etl_request: ETLRequest, request: Request):
+async def process_etl_pure(etl_request: ETLRequest):
     """Main ETL processing endpoint"""
     try:
         # Convert request to dict
         data = etl_request.dict(exclude_none=True)
-        
-        # Add query parameters to data
-        query_params = dict(request.query_params)
-        data.update(query_params)
         
         logger.info(f"Received request: {json.dumps(data)}")
         

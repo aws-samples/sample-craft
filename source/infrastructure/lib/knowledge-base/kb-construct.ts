@@ -343,6 +343,18 @@ export class KnowledgeBaseStack extends Construct implements KnowledgeBaseStackO
       refreshTokenValidity: Duration.days(30),
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
     });
+
+    // Output Cognito User Pool ID
+    new CfnOutput(this, "CognitoUserPoolId", {
+      value: this.cognitoUserPool.userPoolId,
+      description: "Cognito User Pool ID for authentication"
+    });
+
+    // Output Cognito App Client ID
+    new CfnOutput(this, "CognitoAppClientId", {
+      value: this.cognitoClient.userPoolClientId,
+      description: "Cognito App Client ID for authentication"
+    });
   }
 
   private createAgentCoreGatewayRole() {

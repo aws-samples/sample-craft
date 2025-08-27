@@ -27,11 +27,44 @@
                 "summary": "Process Etl",
                 "description": "Main ETL processing endpoint",
                 "operationId": "process_etl_process_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },        
+        "/process-pure": {
+            "post": {
+                "summary": "Process Etl Pure",
+                "description": "Main ETL processing endpoint",
+                "operationId": "process_etl_pure_process_pure_post",
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/ETLRequest"
+                                "type": "object",
+                                "required": [
+                                    "s3_bucket",
+                                    "s3_prefix"
+                                ],
+                                "properties": {
+                                    "s3_bucket": {
+                                        "type": "string",
+                                        "title": "S3 Bucket"
+                                    },
+                                    "s3_prefix": {
+                                        "type": "string",
+                                        "title": "S3 Prefix"
+                                    }
+                                },
+                                "title": "ETLRequest",
+                                "description": "Request model for ETL processing"
                             }
                         }
                     },
@@ -45,256 +78,8 @@
                                 "schema": {}
                             }
                         }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "HTTPBearer": []
-                    }
-                ]
-            }
-        },
-        "/": {
-            "get": {
-                "summary": "Root",
-                "description": "Root endpoint with service info",
-                "operationId": "root__get",
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {}
-                            }
-                        }
                     }
                 }
-            }
-        }
-    },
-    "components": {
-        "schemas": {
-            "ETLRequest": {
-                "properties": {
-                    "s3_bucket": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "S3 Bucket"
-                    },
-                    "s3_prefix": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "S3 Prefix"
-                    },
-                    "operation_type": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Operation Type"
-                    },
-                    "batch_file_number": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Batch File Number"
-                    },
-                    "batch_indice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Batch Indice"
-                    },
-                    "document_language": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Document Language"
-                    },
-                    "index_type": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Index Type"
-                    },
-                    "aos_endpoint": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Aos Endpoint"
-                    },
-                    "etl_endpoint_name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Etl Endpoint Name"
-                    },
-                    "etl_object_table_name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Etl Object Table Name"
-                    },
-                    "portal_bucket_name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Portal Bucket Name"
-                    },
-                    "bedrock_region": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Bedrock Region"
-                    },
-                    "res_bucket": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Res Bucket"
-                    },
-                    "aos_index_name": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Aos Index Name"
-                    }
-                },
-                "type": "object",
-                "title": "ETLRequest"
-            },
-            "HTTPValidationError": {
-                "properties": {
-                    "detail": {
-                        "items": {
-                            "$ref": "#/components/schemas/ValidationError"
-                        },
-                        "type": "array",
-                        "title": "Detail"
-                    }
-                },
-                "type": "object",
-                "title": "HTTPValidationError"
-            },
-            "ValidationError": {
-                "properties": {
-                    "loc": {
-                        "items": {
-                            "anyOf": [
-                                {
-                                    "type": "string"
-                                },
-                                {
-                                    "type": "integer"
-                                }
-                            ]
-                        },
-                        "type": "array",
-                        "title": "Location"
-                    },
-                    "msg": {
-                        "type": "string",
-                        "title": "Message"
-                    },
-                    "type": {
-                        "type": "string",
-                        "title": "Error Type"
-                    }
-                },
-                "type": "object",
-                "required": [
-                    "loc",
-                    "msg",
-                    "type"
-                ],
-                "title": "ValidationError"
-            }
-        },
-        "securitySchemes": {
-            "HTTPBearer": {
-                "type": "http",
-                "scheme": "bearer"
             }
         }
     }
