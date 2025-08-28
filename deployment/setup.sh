@@ -42,4 +42,5 @@ else
     echo "Failed to invoke AgentCore Gateway Lambda"
 fi
 
+echo ""
 echo "OpenAPI update and AgentCore Gateway creation complete!"

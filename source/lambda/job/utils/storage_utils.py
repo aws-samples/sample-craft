@@ -14,16 +14,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def convert_to_logger(document: Document) -> str:
-    # TODO: Convert the document to a logger file format, customize if possible
-    logger_content = "Page Content: \n" + document.page_content + "\n"
-    logger_content += "Metadata: " + json.dumps(document.metadata, ensure_ascii=False)
-
-    return logger_content
-
-
 def upload_chunk_to_s3(
-    s3, logger_content: str, bucket: str, prefix: str, splitting_type: str
+    s3, content: str, bucket: str, prefix: str, splitting_type: str, file_type: str
 ):
     """Upload the logger file to S3 with hierarchy below:
     filename A
@@ -51,13 +43,14 @@ def upload_chunk_to_s3(
     """
     # round the timestamp to hours to avoid too many folders
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H")
-    # make the logger file name unique
-    object_key = f"{prefix}/{splitting_type}/{timestamp}/{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')}.log"
+    # make the file name unique
+    extension = "log" if file_type == "content" else "json"
+    object_key = f"{prefix}/{splitting_type}/{timestamp}/{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S-%f')}-{file_type}.{extension}"
     try:
-        res = s3.put_object(Bucket=bucket, Key=object_key, Body=logger_content)
-        logger.debug(f"Upload logger file to S3: {res}")
+        res = s3.put_object(Bucket=bucket, Key=object_key, Body=content)
+        logger.debug(f"Upload {file_type} file to S3: {res}")
     except Exception as e:
-        logger.error(f"Error uploading logger file to S3: {e}")
+        logger.error(f"Error uploading {file_type} file to S3: {e}")
 
 
 def save_content_to_s3(s3, document: Document, res_bucket: str, splitting_type: str):
@@ -68,13 +61,16 @@ def save_content_to_s3(s3, document: Document, res_bucket: str, splitting_type: 
         res_bucket (str): Target S3 bucket
         s3 (_type_): S3 client
     """
-    logger_file = convert_to_logger(document)
     # Extract the filename from the file_path in the metadata
     file_path = document.metadata.get("file_path", "")
-    # filename = file_path.split('/')[-1].split('.')[0]
-    filename = file_path.replace("s3://", "").replace("/", "-").replace(".", "-")
-    # RecursiveCharacterTextSplitter have been rewrite to split based on chunk size & overlap, use separate folder to store the logger file
-    upload_chunk_to_s3(s3, logger_file, res_bucket, filename, splitting_type)
+    filename = file_path.split('/')[-1].rsplit('.', 1)[0]
+    
+    # Upload page content as log file
+    upload_chunk_to_s3(s3, document.page_content, res_bucket, filename, splitting_type, "content")
+    
+    # Upload metadata as json file
+    metadata_json = json.dumps(document.metadata, ensure_ascii=False)
+    upload_chunk_to_s3(s3, metadata_json, res_bucket, filename, splitting_type, "metadata")
 
 
 def _s3_uri_exist(s3_client, s3_uri: str) -> bool:
