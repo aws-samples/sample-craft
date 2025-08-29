@@ -4,7 +4,7 @@
 
 <img src="docs/image/logo.png" alt="CRAFT Logo" width="300">
 
-### **Conversion, Recognition And Fragmentation Toolkit**
+### **C**onversion, **R**ecognition **A**nd **F**ragmentation **T**oolkit
 
 </div>
 
