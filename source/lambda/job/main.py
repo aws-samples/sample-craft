@@ -2,7 +2,6 @@ import itertools
 import json
 import logging
 import os
-import sys
 import traceback
 from datetime import datetime, timezone
 from typing import Generator, Iterable, List
@@ -27,11 +26,6 @@ from utils.constant import SplittingType
 from loaders.loader import process_object
 from utils.storage_utils import save_content_to_s3
 from utils import sm_utils
-
-
-ENHANCE_CHUNK_SIZE = 25000
-OBJECT_EXPIRY_TIME = 3600
-MAX_OS_DOCS_PER_PUT = 8
 
 
 def initialize_aws_clients(etl_object_table_name):
@@ -623,6 +617,24 @@ def create_processors_and_workers(
     return s3_files_iterator, batch_processor, worker
 
 
+def validate_s3_prefix_exists(s3_client, bucket, prefix):
+    """Validate if S3 prefix exists and contains objects"""
+    if not s3_client:
+        logger.warning("S3 client not available, skipping prefix validation")
+        return True
+        
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+        page_iterator = paginator.paginate(Bucket=bucket, Prefix=prefix, MaxItems=1)
+        
+        for page in page_iterator:
+            if page.get("Contents"):
+                return True
+        return False
+    except Exception as e:
+        logger.error(f"Error validating S3 prefix {bucket}/{prefix}: {e}")
+        raise Exception(f"Failed to validate S3 prefix: {str(e)}")
+
 def get_param_value(request_val, env_key, default_val):
     """Get parameter value with priority: request -> env -> default"""
     if request_val is not None:
@@ -673,6 +685,10 @@ def main(request, job_id: str):
     embedding_model_info, vlm_model_info = get_model_info()
     embedding_model_id = embedding_model_info.get("modelId", "default-embedding")
     
+    # Validate S3 prefix exists
+    if not validate_s3_prefix_exists(s3_client_local, s3_bucket, s3_prefix):
+        raise Exception(f"S3 prefix '{s3_prefix}' does not exist or contains no objects in bucket '{s3_bucket}'")
+    
     file_iterator = S3FileIterator(
         s3_bucket, s3_prefix, supported_file_types, s3_client_local, 
         batch_file_number, batch_indice, document_language, etl_endpoint_name, 
@@ -682,6 +698,7 @@ def main(request, job_id: str):
     if operation_type == "extract_only":
         embedding_function, docsearch = None, None
     else:
+        aos_secret = "<your_secret_name>"  # Replace with your secret name or pass as a parameter
         embedding_function = sm_utils.getCustomEmbeddings(
             region_name=region,
             bedrock_region=bedrock_region,
@@ -733,63 +750,3 @@ def main(request, job_id: str):
         raise ValueError(
             "Invalid operation type. Valid types: create, delete, update, extract_only"
         )
-
-
-def lambda_handler(event, context):
-    """
-    Lambda function handler for processing ETL requests from API Gateway
-    
-    Args:
-        event (dict): Lambda event data containing request parameters
-        context (LambdaContext): Lambda context object
-        
-    Returns:
-        dict: Response with status and details formatted for API Gateway
-    """
-    try:
-        logger.info(f"Received event: {json.dumps(event)}")
-        # body = {}
-        
-        # # Parse request body if present
-        # if 'body' in event and event['body']:
-        #     try:
-        #         body = json.loads(event['body'])
-        #     except json.JSONDecodeError:
-        #         return {
-        #             "statusCode": 400,
-        #             "headers": {"Content-Type": "application/json"},
-        #             "body": json.dumps({"error": "Invalid JSON in request body"})
-        #         }
-        
-        # Create a request object from the body or query parameters
-        class Request:
-            def __init__(self, data):
-                for key, value in data.items():
-                    setattr(self, key, value)
-        
-        job_id = context.aws_request_id
-        request = Request(event)
-        
-        # Process the request
-        main(request, job_id)
-        
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({
-                "status": "success",
-                "message": "ETL process started successfully",
-                "job_id": job_id
-            })
-        }
-    except Exception as e:
-        logger.error(f"Error processing request: {str(e)}")
-        traceback.print_exc()
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({
-                "status": "error",
-                "message": str(e)
-            })
-        }

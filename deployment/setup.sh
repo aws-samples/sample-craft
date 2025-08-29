@@ -43,4 +43,4 @@ else
 fi
 
 echo ""
-echo "OpenAPI update and AgentCore Gateway creation complete!"
+echo "OpenAPI update and AgentCore Gateway creation complete"

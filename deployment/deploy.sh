@@ -47,4 +47,4 @@ cd ../../deployment
 echo "Running HTTPS and Gateway setup..."
 ./setup.sh "$BUCKET_NAME" "$LAMBDA_NAME" "$CLOUDFRONT_URL"
 
-echo "Deployment completed successfully!"
+echo "Deployment completed"
