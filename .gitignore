@@ -96,3 +96,5 @@ source/lambda/deployment_assets/
 source/lambda/job/dep/dist/llm_bot_dep-0.1.0-py3-none-any.whl
 source/lambda/online/shared/
 source/lambda/intention/aos/sm_utils.py
+.gitsecret/keys/random_seed
+!*.secret
