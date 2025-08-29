@@ -126,13 +126,6 @@ Here is an example
 ```
 
 
-
-## **Contribution**
-We welcome contributions! See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## **License**
-This project is licensed under the Apache-2.0 License.
-
 ---
 
 <div align="center">
