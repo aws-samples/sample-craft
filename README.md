@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![CRAFT Logo](docs/image/logo.png)
+<img src="docs/image/logo.png" alt="CRAFT Logo" width="300">
 
 ### **Conversion, Recognition And Fragmentation Toolkit**
 
