@@ -4,12 +4,12 @@
 
 # 🎨 <span style="color: #FF6B35">C</span><span style="color: #F7931E">R</span><span style="color: #FFD23F">A</span><span style="color: #06FFA5">F</span><span style="color: #118AB2">T</span>
 
-### ✨ **Conversion, Recognition And Fragmentation Toolkit** ✨
+### **Conversion, Recognition And Fragmentation Toolkit**
 
-<h3>🚀 Intelligent Document Processing & Agent-Based Applications Platform 🤖</h3>
+<h3>Intelligent Document Processing & Agent-Based Applications Platform</h3>
 
-[![⭐ Stars](https://img.shields.io/github/stars/aws-samples/Intelli-Agent.svg?style=for-the-badge&logo=github&color=FFD700)](https://github.com/aws-samples/Intelli-Agent/stargazers)
-[![🔧 Build](https://img.shields.io/github/actions/workflow/status/aws-samples/Intelli-Agent/pull-request-lint.yml?style=for-the-badge&logo=github-actions)](https://github.com/aws-samples/Intelli-Agent/actions/workflows/pull-request-lint.yml)
+[![⭐ Stars](https://img.shields.io/github/stars/aws-samples/sample-craft.svg?style=for-the-badge&logo=github&color=FFD700)](https://github.com/aws-samples/sample-craft/stargazers)
+[![🔧 Build](https://img.shields.io/github/actions/workflow/status/aws-samples/sample-craft/pull-request-lint.yml?style=for-the-badge&logo=github-actions)](https://github.com/aws-samples/sample-craft/actions/workflows/pull-request-lint.yml)
 [![📄 License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge&logo=apache)](https://opensource.org/license/apache-2-0)
 
 ---
@@ -18,56 +18,46 @@
 
 <div align="center">
 
-## 🌟 **Welcome to CRAFT** 🌟
+## **Welcome to CRAFT**
 
 *The ultimate toolkit for intelligent document transformation and AI-powered knowledge management*
 
 </div>
 
-### 🎯 **What is CRAFT?**
+### **What is CRAFT?**
 
 CRAFT (Conversion, Recognition And Fragmentation Toolkit) is a cutting-edge platform that seamlessly combines intelligent document processing with agent-based conversational AI. Transform your documents into actionable knowledge with unprecedented ease and precision.
 
-### ✨ **Key Features**
+### **Key Features**
 
-🔄 **Smart Document Conversion**
-- Automatically converts PDF, DOCX, Excel, CSV, HTML to clean Markdown
+**Smart Document Conversion**
+- Automatically converts 12+ formats (PDF, DOCX, Excel, CSV, HTML, etc.) to clean Markdown
 - Intelligent image extraction and S3 storage integration
 - Preserves document structure and formatting
 
-🧠 **Enterprise Knowledge Base**
-- Upload documents in 12+ formats for instant knowledge base creation
-- Automatic content processing and vectorization
-- Advanced semantic search capabilities
-
-💬 **Interactive Chat Interface**
-- Beautiful React/Next.js UI for document management
-- Real-time conversational AI interactions
-- Multi-language support
-
-🔌 **Comprehensive APIs**
+**Comprehensive APIs**
 - RESTful APIs for document conversion and chat functionality
 - WebSocket support for real-time communication
 - Easy integration with existing applications
 
 <div align="center">
 
-### 🚀 **Deploy. Convert. Chat. Repeat.** 🚀
+### **Deploy. Convert. Chat. Repeat.**
 
 *CRAFT empowers developers to build intelligent, context-aware applications with minimal overhead and maximum efficiency.*
 
 </div>
 
-## 📋 **Table of Contents**
+## **Table of Contents**
 
-- [⚡ Quick Start](#quick-start)
-- [📚 API Reference](#api-reference)
-- [❓ FAQ](#faq)
-- [🤝 Contribution](#contribution)
-- [📜 License](#license)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [FAQ](#faq)
+- [Contribution](#contribution)
+- [License](#license)
 
 
-### 🔧 **CRAFT Document Processing Pipeline**
+### **CRAFT Document Processing Pipeline**
 CRAFT's intelligent processing engine provides comprehensive document transformation with format recognition, content extraction to Markdown, image extraction and storage, metadata conversion, and semantic segmentation, all operating seamlessly in the background.
 
 ![Offline Workflow](docs/images/intelli-agent-kb-etl.png)
@@ -177,29 +167,6 @@ Rerun `./installer.sh config`, or modify the config.json located under the `sour
 ./installer.sh build   # Rebuild assets only
 ./installer.sh deploy  # Deploy changes only
 ```
-
-
-## 🌟 **Feature Overview**
-
-
-![KB](docs/images/chat-history-ui.png)
-
-### 📚 **2. CRAFT Document Conversion & Library**
-The Document Library provides intelligent document conversion and management capabilities:
-- **Supported Formats**: PDF, DOCX, Excel (XLS/XLSX), CSV, HTML, TXT, MD, JSON, JSONL, and image formats (PNG, JPG, JPEG, WEBP)
-- **Automatic Conversion**: Documents are automatically converted to Markdown format with preserved structure
-- **Image Extraction**: Embedded images and image links are automatically extracted and stored separately
-- **UI Upload Limit**: 10MB per document
-- **Batch Operations**: Single upload, multiple deletion support
-
-Tips:
-- Duplicate document names will be overwritten with the latest version
-- Upload Process: Document upload → Conversion to Markdown → Image extraction → Offline processing
-- Status shows "Completed" only after both conversion and processing are finished
-- Converted Markdown files and extracted images are stored in S3 with organized structure
-- Example:
-![KB](docs/images/kb-ui.png)
-
 
 
 ## **API Reference**
