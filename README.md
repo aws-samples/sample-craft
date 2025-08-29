@@ -2,7 +2,7 @@
 
 <div align="center">
 
-# <span style="color: #FF6B35">C</span><span style="color: #F7931E">R</span><span style="color: #FFD23F">A</span><span style="color: #06FFA5">F</span><span style="color: #118AB2">T</span>
+![CRAFT Logo](docs/image/logo.png)
 
 ### **Conversion, Recognition And Fragmentation Toolkit**
 
