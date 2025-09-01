@@ -1,0 +1,89 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Document Conversion Service",
+        "description": "A comprehensive service for converting various document formats (PDF, DOCX, Excel, CSV, HTML) to Markdown with automatic image extraction and S3 storage",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/process": {
+            "post": {
+                "summary": "Convert document to Markdown",
+                "description": "Processes documents from various formats (PDF, DOCX, Excel, CSV, HTML) and converts them to Markdown format. Automatically extracts and stores images in S3 bucket while preserving document structure and formatting.",
+                "operationId": "convertDocumentToMarkdown",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "s3_bucket",
+                                    "s3_prefix"
+                                ],
+                                "properties": {
+                                    "s3_bucket": {
+                                        "type": "string",
+                                        "title": "S3 Bucket",
+                                        "description": "The S3 bucket name where the converted Markdown file and extracted images will be stored",
+                                        "example": "my-documents-bucket"
+                                    },
+                                    "s3_prefix": {
+                                        "type": "string",
+                                        "title": "S3 Object Key Prefix",
+                                        "description": "The S3 object key prefix/path where the source document is located for processing",
+                                        "example": "documents/input/report.pdf"
+                                    }
+                                },
+                                "title": "DocumentConversionRequest",
+                                "description": "Request payload for document conversion to Markdown format"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Document successfully converted to Markdown",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Invalid input parameters",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Invalid S3 bucket name or file not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Processing failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Failed to convert document or upload to S3"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

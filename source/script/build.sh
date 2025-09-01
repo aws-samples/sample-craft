@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -e
+
+# Load config.json
+config_file="../infrastructure/bin/config.json"
+deploy_region=$(jq -r '.deployRegion' $config_file)
+knowledge_base_enabled=$(jq -r '.knowledgeBase.enabled' $config_file)
+knowledge_base_intelliagent_enabled=$(jq -r '.knowledgeBase.knowledgeBaseType.intelliAgentKb.enabled' $config_file)
+knowledge_base_models_enabled=$(jq -r '.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.enabled' $config_file)
+ecr_repository=$(jq -r '.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrRepository' $config_file)
+ecr_image_tag=$(jq -r '.knowledgeBase.knowledgeBaseType.intelliAgentKb.knowledgeBaseModel.ecrImageTag' $config_file)
+opensearch_enabled=$(jq -r '.knowledgeBase.knowledgeBaseType.intelliAgentKb.vectorStore.opensearch.enabled' $config_file)
+embedding_model_provider=$(jq -r '.model.embeddingsModels[0].provider' $config_file)
+model_assets_bucket=$(jq -r '.model.modelConfig.modelAssetsBucket' $config_file)
+ui_enabled=$(jq -r '.ui.enabled' $config_file)
+# fi
+
+echo "Knowledge Base Enabled: $knowledge_base_enabled"
+echo "IntelliAgent Knowledge Base Enabled: $knowledge_base_intelliagent_enabled"
+echo "Knowledge Base Models Enabled: $knowledge_base_models_enabled"
+echo "ECR Repository: $ecr_repository"
+echo "ECR Image Tag: $ecr_image_tag"
+echo "OpenSearch Enabled: $opensearch_enabled"
+echo "Model Assets Bucket: $model_assets_bucket"
+echo "UI Enabled: $ui_enabled"
+
+# Set ECR login region based on deploy region
+if [ "$deploy_region" != "cn-north-1" ] && [ "$deploy_region" != "cn-northwest-1" ]; then
+    ecr_login_region="us-east-1"
+    aws ecr-public get-login-password --region $ecr_login_region | docker login --username AWS --password-stdin public.ecr.aws
+fi
+
+prepare_etl_model() {
+    echo "Preparing ETL Model"
+    cd model/etl/code
+    sh model.sh $ecr_repository $ecr_image_tag $deploy_region
+    cd ../../..
+    pwd
+}
+
+modules_prepared=""
+cd ..
+
+if $knowledge_base_enabled && $knowledge_base_intelliagent_enabled && $knowledge_base_models_enabled; then
+    prepare_etl_model
+    modules_prepared="${modules_prepared}ETL Model, "
+fi
+
+# Remove the trailing comma and space
+modules_prepared=$(echo "$modules_prepared" | sed 's/, $//')
+
+if [ -n "$modules_prepared" ]; then
+    echo "You have prepared assets for the following modules: $modules_prepared."
+else
+    echo "No modules were prepared."
+fi
